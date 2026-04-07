@@ -13,6 +13,8 @@ Most training programs fail for two reasons:
 1. **No accountability.** Deliberate practice is painful. Without structure, athletes half-ass it — and half-assing creates an *illusion of comprehension*. They feel like they're improving when they're not.
 2. **Ignoring how the brain actually works.** The bottleneck to learning any skill is *working memory*. It can only hold a few things at once. If you overload it, nothing sticks.
 
+![Team Dashboard](team.png)
+
 ## How Frontier OS Fixes It
 
 ### A knowledge graph of every skill in the sport
@@ -20,6 +22,8 @@ Most training programs fail for two reasons:
 Instead of a flat checklist, Frontier OS maps skills as a connected graph — from Sleep Hygiene all the way up to Peak Game Performance. Each node has prerequisites, so when an athlete completes a complex task like an intrasquad scrimmage, the system gives credit for *every underlying skill* that task required (conditioning, fielding, situational hitting, etc.).
 
 This means coaches always know exactly what an athlete can and can't do — and what they should work on next.
+
+![Skill Tree](skilltree.png)
 
 ### Effortful retrieval, not passive repetition
 
