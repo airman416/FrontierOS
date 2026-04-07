@@ -16,7 +16,7 @@ const JOYRIDE_OPTIONS = {
   primaryColor: '#2563eb',
   zIndex: 10050,
   showProgress: true,
-  buttons: ['back', 'close', 'primary', 'skip'] as const,
+  buttons: ['back', 'close', 'primary', 'skip'] as ('back' | 'close' | 'primary' | 'skip')[],
   textColor: '#e2e8f0',
   backgroundColor: '#191b24',
   arrowColor: '#191b24',

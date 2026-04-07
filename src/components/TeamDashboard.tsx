@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
   ATHLETES,
-  ATHLETE_BY_ID,
   getInitials,
   type Athlete,
 } from '../data/athletes'
