@@ -10,19 +10,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.5.0",
-    "@types/three": "^0.183.1",
-    "@use-gesture/react": "^10.3.1",
-    "d3-force-3d": "^3.0.6",
+    "@xyflow/react": "^12.10.2",
+    "dagre": "^0.8.5",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "three": "^0.183.2",
+    "react-joyride": "^3.0.2",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@tailwindcss/vite": "^4.2.2",
+    "@types/dagre": "^0.7.54",
     "@types/node": "^24.12.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

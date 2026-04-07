@@ -1,32 +1,16 @@
 import { create } from 'zustand'
 import {
   readinessBand,
-  SKILL_DEFS,
   SKILL_BY_ID,
   type ReadinessBand,
-  type SkillDef,
 } from '../data/graph'
+import {
+  ATHLETES,
+  INITIAL_ATHLETE_MASTERY,
+  INITIAL_ATHLETE_READINESS,
+} from '../data/athletes'
 
 export type VisualRole = 'locked' | 'frontier' | 'mastered' | 'highRisk'
-
-export interface SimNode extends SkillDef {
-  x: number
-  y: number
-  z: number
-  vx?: number
-  vy?: number
-  vz?: number
-  fx?: number | null
-  fy?: number | null
-  fz?: number | null
-}
-
-export interface PulseEdge {
-  id: string
-  fromId: string
-  toId: string
-  startedAt: number
-}
 
 function basePrereqsMet(id: string, mastered: Set<string>): boolean {
   const s = SKILL_BY_ID[id]
@@ -83,73 +67,88 @@ export function isClickableFrontier(
 }
 
 interface FrontierState {
+  selectedAthleteId: string
+  athleteMastery: Record<string, Set<string>>
+  athleteReadiness: Record<string, number>
+
+  /** Active athlete state — mirrors selected athlete for backward compat */
   mastered: Set<string>
   readinessScore: number
-  pulses: PulseEdge[]
 
+  selectAthlete: (id: string) => void
   setReadinessScore: (n: number) => void
   toggleMaster: (id: string) => void
-  prunePulses: (now: number) => void
   resetDemo: () => void
-
   getVisualRole: (id: string) => VisualRole
 }
 
-const INITIAL_MASTERED = new Set<string>([
-  'sleep-hygiene',
-  'joint-mobility',
-  'aerobic-base',
-])
+function buildInitialMastery(): Record<string, Set<string>> {
+  const result: Record<string, Set<string>> = {}
+  for (const athlete of ATHLETES) {
+    result[athlete.id] = new Set(INITIAL_ATHLETE_MASTERY[athlete.id] ?? [])
+  }
+  return result
+}
+
+function buildInitialReadiness(): Record<string, number> {
+  const result: Record<string, number> = {}
+  for (const athlete of ATHLETES) {
+    result[athlete.id] = INITIAL_ATHLETE_READINESS[athlete.id] ?? 100
+  }
+  return result
+}
+
+const DEFAULT_ATHLETE = ATHLETES[0].id
 
 export const useFrontierStore = create<FrontierState>((set, get) => ({
-  mastered: new Set(INITIAL_MASTERED),
-  readinessScore: 100,
-  pulses: [],
+  selectedAthleteId: DEFAULT_ATHLETE,
+  athleteMastery: buildInitialMastery(),
+  athleteReadiness: buildInitialReadiness(),
+  mastered: new Set(INITIAL_ATHLETE_MASTERY[DEFAULT_ATHLETE]),
+  readinessScore: INITIAL_ATHLETE_READINESS[DEFAULT_ATHLETE],
 
-  setReadinessScore: (n) =>
-    set({ readinessScore: Math.max(0, Math.min(100, Math.round(n))) }),
+  selectAthlete: (id) => {
+    const { athleteMastery, athleteReadiness } = get()
+    set({
+      selectedAthleteId: id,
+      mastered: new Set(athleteMastery[id] ?? []),
+      readinessScore: athleteReadiness[id] ?? 100,
+    })
+  },
+
+  setReadinessScore: (n) => {
+    const { selectedAthleteId, athleteReadiness } = get()
+    const score = Math.max(0, Math.min(100, Math.round(n)))
+    set({
+      readinessScore: score,
+      athleteReadiness: { ...athleteReadiness, [selectedAthleteId]: score },
+    })
+  },
 
   toggleMaster: (id) => {
-    const { mastered, readinessScore } = get()
+    const { mastered, readinessScore, selectedAthleteId, athleteMastery } =
+      get()
     if (!isClickableFrontier(id, mastered, readinessScore)) return
 
     const next = new Set(mastered)
     next.add(id)
-
-    const newlyUnlocked: string[] = []
-    for (const s of SKILL_DEFS) {
-      if (next.has(s.id)) continue
-      if (!s.prereqs.includes(id)) continue
-      const wasLocked = !basePrereqsMet(s.id, mastered)
-      const nowUnlocked = basePrereqsMet(s.id, next)
-      if (wasLocked && nowUnlocked) newlyUnlocked.push(s.id)
-    }
-
-    const now = performance.now()
-    const newPulses: PulseEdge[] = newlyUnlocked.map((toId) => ({
-      id: `${id}->${toId}-${now}`,
-      fromId: id,
-      toId,
-      startedAt: now,
-    }))
-
     set({
       mastered: next,
-      pulses: [...get().pulses, ...newPulses].slice(-24),
+      athleteMastery: { ...athleteMastery, [selectedAthleteId]: next },
     })
   },
 
-  prunePulses: (now) => {
-    const keep = get().pulses.filter((p) => now - p.startedAt < 1600)
-    if (keep.length !== get().pulses.length) set({ pulses: keep })
-  },
-
-  resetDemo: () =>
+  resetDemo: () => {
+    const initial = buildInitialMastery()
+    const initialReadiness = buildInitialReadiness()
+    const { selectedAthleteId } = get()
     set({
-      mastered: new Set(INITIAL_MASTERED),
-      readinessScore: 100,
-      pulses: [],
-    }),
+      athleteMastery: initial,
+      athleteReadiness: initialReadiness,
+      mastered: new Set(initial[selectedAthleteId]),
+      readinessScore: initialReadiness[selectedAthleteId],
+    })
+  },
 
   getVisualRole: (id) =>
     computeVisualRole(id, get().mastered, get().readinessScore),

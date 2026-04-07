@@ -4,11 +4,9 @@ export interface SkillDef {
   id: string
   label: string
   level: 1 | 2 | 3 | 4 | 5 | 6
-  /** Prerequisite node ids (must be mastered) */
   prereqs: string[]
 }
 
-/** Strict hierarchical skill tree from PRD */
 export const SKILL_DEFS: SkillDef[] = [
   { id: 'sleep-hygiene', label: 'Sleep Hygiene', level: 1, prereqs: [] },
   { id: 'joint-mobility', label: 'Joint Mobility', level: 1, prereqs: [] },
@@ -37,11 +35,11 @@ export const SKILL_DEFS: SkillDef[] = [
     level: 3,
     prereqs: ['core-stability'],
   },
-  { id: 'form-shooting', label: 'Form Shooting', level: 3, prereqs: [] },
-  { id: 'basic-dribbling', label: 'Basic Dribbling', level: 3, prereqs: [] },
+  { id: 'batting-tee-work', label: 'Batting Tee Work', level: 3, prereqs: [] },
+  { id: 'basic-fielding', label: 'Basic Fielding', level: 3, prereqs: [] },
   {
-    id: 'defensive-stance',
-    label: 'Defensive Stance',
+    id: 'defensive-positioning',
+    label: 'Defensive Positioning',
     level: 3,
     prereqs: ['core-stability', 'anaerobic-capacity'],
   },
@@ -52,24 +50,24 @@ export const SKILL_DEFS: SkillDef[] = [
     prereqs: ['heavy-resistance'],
   },
   {
-    id: 'game-speed-catch-shoot',
-    label: 'Game Speed Catch and Shoot',
+    id: 'live-pitch-hitting',
+    label: 'Live Pitch Hitting',
     level: 4,
-    prereqs: ['form-shooting', 'anaerobic-capacity'],
+    prereqs: ['batting-tee-work', 'anaerobic-capacity'],
   },
   {
-    id: 'advanced-ball-handling',
-    label: 'Advanced Ball Handling',
+    id: 'advanced-fielding',
+    label: 'Advanced Fielding',
     level: 4,
-    prereqs: ['basic-dribbling'],
+    prereqs: ['basic-fielding'],
   },
   {
-    id: 'shot-creation',
-    label: 'Shot Creation off Dribble',
+    id: 'situational-hitting',
+    label: 'Situational Hitting',
     level: 5,
     prereqs: [
-      'advanced-ball-handling',
-      'game-speed-catch-shoot',
+      'advanced-fielding',
+      'live-pitch-hitting',
       'plyometrics',
     ],
   },
@@ -81,9 +79,9 @@ export const SKILL_DEFS: SkillDef[] = [
   },
   {
     id: 'peak-performance',
-    label: 'Peak Match Performance',
+    label: 'Peak Game Performance',
     level: 6,
-    prereqs: ['shot-creation', 'game-day-fueling'],
+    prereqs: ['situational-hitting', 'game-day-fueling'],
   },
 ]
 
@@ -91,7 +89,6 @@ export const SKILL_BY_ID = Object.fromEntries(
   SKILL_DEFS.map((s) => [s.id, s]),
 ) as Record<string, SkillDef>
 
-/** Directed edges: prerequisite → dependent (dependency tether) */
 export function buildLinks(): { source: string; target: string }[] {
   const links: { source: string; target: string }[] = []
   for (const s of SKILL_DEFS) {
@@ -110,11 +107,7 @@ export function readinessBand(score: number): ReadinessBand {
 
 export function bannerForReadiness(score: number): string {
   const band = readinessBand(score)
-  if (band === 'full') {
-    return 'Full readiness. The graph reflects your mastery progression and prerequisite gates.'
-  }
-  if (band === 'moderate') {
-    return 'Central Nervous System fatigue detected. High velocity movements locked. Regressing training frontier to active recovery and mobility.'
-  }
-  return 'Severe fatigue. Only foundational recovery protocols remain active. Focus on sleep, mobility, and aerobic base.'
+  if (band === 'full') return 'Full readiness — all gates open.'
+  if (band === 'moderate') return 'CNS fatigue detected — high-velocity work locked.'
+  return 'Severe fatigue — recovery protocols only.'
 }
