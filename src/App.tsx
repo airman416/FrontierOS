@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { EVENTS, Joyride, STATUS, type EventData } from 'react-joyride'
+import { AthleteHome } from './components/AthleteHome'
 import { SkillTreeScreen } from './components/SkillTreeScreen'
 import { TeamDashboard } from './components/TeamDashboard'
 import { ATHLETES } from './data/athletes'
@@ -31,6 +32,7 @@ export default function App() {
   const [treeTourRun, setTreeTourRun] = useState(false)
   const [isOnboarding, setIsOnboarding] = useState(false)
   const selectAthlete = useFrontierStore((s) => s.selectAthlete)
+  const userRole = useFrontierStore((s) => s.userRole)
 
   /* ── Welcome modal actions ── */
 
@@ -102,6 +104,14 @@ export default function App() {
     setTreeTourRun(false)
     requestAnimationFrame(() => setTreeTourRun(true))
   }, [])
+
+  /* ── Athlete mode ── */
+
+  if (userRole === 'athlete') {
+    return <AthleteHome />
+  }
+
+  /* ── Coach mode ── */
 
   return (
     <>
@@ -184,9 +194,9 @@ function WelcomeModal({
         </p>
 
         <p className="mt-5 text-sm leading-relaxed text-slate-400">
-          A guided tour walks through the roster, team heatmap, skill map, and
-          every learning-science technique powering athlete development. Takes
-          about two minutes.
+          A guided tour walks through the roster, team heatmap, skill map,
+          athlete daily view, and every learning-science technique powering
+          development. Takes about two minutes.
         </p>
 
         <div className="mt-6 space-y-2">

@@ -3,8 +3,10 @@ import {
   readinessBand,
   SKILL_BY_ID,
   type ReadinessBand,
+  type Sport,
 } from '../data/graph'
 import {
+  ATHLETE_BY_ID,
   ATHLETES,
   INITIAL_ATHLETE_MASTERY,
   INITIAL_ATHLETE_READINESS,
@@ -71,15 +73,19 @@ interface FrontierState {
   athleteMastery: Record<string, Set<string>>
   athleteReadiness: Record<string, number>
 
-  /** Active athlete state — mirrors selected athlete for backward compat */
   mastered: Set<string>
   readinessScore: number
+
+  userRole: 'coach' | 'athlete'
+  selectedSport: Sport
 
   selectAthlete: (id: string) => void
   setReadinessScore: (n: number) => void
   toggleMaster: (id: string) => void
   resetDemo: () => void
   getVisualRole: (id: string) => VisualRole
+  setUserRole: (role: 'coach' | 'athlete') => void
+  setSelectedSport: (sport: Sport) => void
 }
 
 function buildInitialMastery(): Record<string, Set<string>> {
@@ -106,13 +112,17 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
   athleteReadiness: buildInitialReadiness(),
   mastered: new Set(INITIAL_ATHLETE_MASTERY[DEFAULT_ATHLETE]),
   readinessScore: INITIAL_ATHLETE_READINESS[DEFAULT_ATHLETE],
+  userRole: 'coach',
+  selectedSport: 'baseball',
 
   selectAthlete: (id) => {
     const { athleteMastery, athleteReadiness } = get()
+    const athlete = ATHLETE_BY_ID[id]
     set({
       selectedAthleteId: id,
       mastered: new Set(athleteMastery[id] ?? []),
       readinessScore: athleteReadiness[id] ?? 100,
+      selectedSport: athlete?.sport ?? 'baseball',
     })
   },
 
@@ -152,4 +162,16 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
 
   getVisualRole: (id) =>
     computeVisualRole(id, get().mastered, get().readinessScore),
+
+  setUserRole: (role) => {
+    if (role === 'athlete') {
+      const { selectedAthleteId } = get()
+      const athlete = ATHLETE_BY_ID[selectedAthleteId]
+      set({ userRole: role, selectedSport: athlete?.sport ?? 'baseball' })
+    } else {
+      set({ userRole: role })
+    }
+  },
+
+  setSelectedSport: (sport) => set({ selectedSport: sport }),
 }))

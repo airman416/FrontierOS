@@ -4,8 +4,9 @@ import {
   getInitials,
   type Athlete,
 } from '../data/athletes'
-import { SKILL_DEFS } from '../data/graph'
+import { skillsForSport, SPORTS, type Sport } from '../data/graph'
 import { computeVisualRole, useFrontierStore } from '../store/useFrontierStore'
+import { RoleToggle } from './RoleToggle'
 
 type Tab = 'roster' | 'heatmap'
 
@@ -17,15 +18,31 @@ const SKILL_SHORT: Record<string, string> = {
   'anaerobic-capacity': 'Anaerobic',
   'macro-tracking': 'Macros',
   'heavy-resistance': 'Resistance',
+  plyometrics: 'Plyo',
+  'game-day-fueling': 'Fueling',
+  // Baseball
   'batting-tee-work': 'Tee Work',
   'basic-fielding': 'Fielding',
   'defensive-positioning': 'Defense',
-  plyometrics: 'Plyo',
   'live-pitch-hitting': 'Live Hitting',
   'advanced-fielding': 'Adv Fielding',
   'situational-hitting': 'Sit Hitting',
-  'game-day-fueling': 'Fueling',
-  'peak-performance': 'Peak',
+  'peak-game-baseball': 'Peak',
+  // Basketball
+  'ball-handling': 'Handles',
+  'shooting-form': 'Shooting',
+  'defensive-stance': 'Def Stance',
+  'court-vision': 'Vision',
+  'mid-range-shooting': 'Mid Range',
+  'help-defense': 'Help D',
+  'pick-and-roll': 'PnR',
+  'three-point-shooting': '3PT',
+  'peak-game-basketball': 'Peak',
+}
+
+const SPORT_LABEL: Record<Sport, string> = {
+  baseball: 'Baseball',
+  basketball: 'Basketball',
 }
 
 const ROLE_CELL_BG: Record<string, string> = {
@@ -83,17 +100,19 @@ function AvatarCircle({ athlete, size = 40 }: { athlete: Athlete; size?: number 
 function RosterCard({
   athlete,
   masteredCount,
+  totalSkills,
   readiness,
   onClick,
   dataTour,
 }: {
   athlete: Athlete
   masteredCount: number
+  totalSkills: number
   readiness: number
   onClick: () => void
   dataTour?: string
 }) {
-  const pct = Math.round((masteredCount / SKILL_DEFS.length) * 100)
+  const pct = totalSkills > 0 ? Math.round((masteredCount / totalSkills) * 100) : 0
 
   return (
     <button
@@ -123,7 +142,7 @@ function RosterCard({
             />
           </div>
           <span className="text-[11px] font-bold tabular-nums text-slate-400">
-            {masteredCount}/{SKILL_DEFS.length}
+            {masteredCount}/{totalSkills}
           </span>
         </div>
 
@@ -151,25 +170,34 @@ function RosterCard({
 /* ── Roster Grid ── */
 
 function RosterGrid({
+  sport,
   onSelectAthlete,
 }: {
+  sport: Sport
   onSelectAthlete: (id: string) => void
 }) {
   const athleteMastery = useFrontierStore((s) => s.athleteMastery)
   const athleteReadiness = useFrontierStore((s) => s.athleteReadiness)
+  const filtered = ATHLETES.filter((a) => a.sport === sport)
+  const sportSkills = skillsForSport(sport)
 
   return (
     <div data-tour="roster-grid" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {ATHLETES.map((a, i) => (
-        <RosterCard
-          key={a.id}
-          athlete={a}
-          masteredCount={athleteMastery[a.id]?.size ?? 0}
-          readiness={athleteReadiness[a.id] ?? 100}
-          onClick={() => onSelectAthlete(a.id)}
-          dataTour={i === 0 ? 'roster-card-first' : undefined}
-        />
-      ))}
+      {filtered.map((a, i) => {
+        const mastery = athleteMastery[a.id] ?? new Set<string>()
+        const sportMastered = sportSkills.filter((s) => mastery.has(s.id)).length
+        return (
+          <RosterCard
+            key={a.id}
+            athlete={a}
+            masteredCount={sportMastered}
+            totalSkills={sportSkills.length}
+            readiness={athleteReadiness[a.id] ?? 100}
+            onClick={() => onSelectAthlete(a.id)}
+            dataTour={i === 0 ? 'roster-card-first' : undefined}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -177,23 +205,29 @@ function RosterGrid({
 /* ── Heatmap ── */
 
 function HeatmapGrid({
+  sport,
   onSelectAthlete,
 }: {
+  sport: Sport
   onSelectAthlete: (id: string) => void
 }) {
   const athleteMastery = useFrontierStore((s) => s.athleteMastery)
   const athleteReadiness = useFrontierStore((s) => s.athleteReadiness)
 
+  const sportSkills = skillsForSport(sport)
+  const filtered = ATHLETES.filter((a) => a.sport === sport)
+
   const levels = [1, 2, 3, 4, 5, 6] as const
   const skillsByLevel = levels.map((l) =>
-    SKILL_DEFS.filter((s) => s.level === l),
-  )
+    sportSkills.filter((s) => s.level === l),
+  ).filter((arr) => arr.length > 0)
+  const usedLevels = skillsByLevel.map((arr) => arr[0].level)
 
-  const teamMasteryBySkill = SKILL_DEFS.map((skill) => {
-    const count = ATHLETES.filter((a) =>
+  const teamMasteryBySkill = sportSkills.map((skill) => {
+    const count = filtered.filter((a) =>
       (athleteMastery[a.id] ?? new Set()).has(skill.id),
     ).length
-    return Math.round((count / ATHLETES.length) * 100)
+    return filtered.length > 0 ? Math.round((count / filtered.length) * 100) : 0
   })
 
   return (
@@ -217,7 +251,6 @@ function HeatmapGrid({
       {/* Scrollable table */}
       <div className="overflow-x-auto border border-border-subtle">
         <table className="w-full border-collapse">
-          {/* Column group headers (levels) */}
           <thead>
             <tr>
               <th className="sticky left-0 z-20 bg-surface-raised" />
@@ -227,7 +260,7 @@ function HeatmapGrid({
                   colSpan={skills.length}
                   className="border-b border-l border-border-subtle bg-surface-raised px-1 py-1.5 text-center text-[9px] font-bold uppercase tracking-widest text-slate-600"
                 >
-                  Lvl {levels[li]}
+                  Lvl {usedLevels[li]}
                 </th>
               ))}
               <th className="border-b border-l border-border-subtle bg-surface-raised px-2 py-1.5 text-center text-[9px] font-bold uppercase tracking-widest text-slate-600">
@@ -235,12 +268,11 @@ function HeatmapGrid({
               </th>
             </tr>
 
-            {/* Skill names */}
             <tr>
               <th className="sticky left-0 z-20 min-w-[140px] border-b border-border-subtle bg-surface-raised px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Athlete
               </th>
-              {SKILL_DEFS.map((s) => (
+              {sportSkills.map((s) => (
                 <th
                   key={s.id}
                   className="border-b border-l border-border-subtle bg-surface-raised px-0.5 py-2 text-center"
@@ -256,13 +288,13 @@ function HeatmapGrid({
           </thead>
 
           <tbody>
-            {ATHLETES.map((athlete) => {
+            {filtered.map((athlete) => {
               const mastery = athleteMastery[athlete.id] ?? new Set<string>()
               const readiness = athleteReadiness[athlete.id] ?? 100
-              const masteredCount = mastery.size
-              const pct = Math.round(
-                (masteredCount / SKILL_DEFS.length) * 100,
-              )
+              const sportMastered = sportSkills.filter((s) => mastery.has(s.id)).length
+              const pct = sportSkills.length > 0
+                ? Math.round((sportMastered / sportSkills.length) * 100)
+                : 0
 
               return (
                 <tr
@@ -284,7 +316,7 @@ function HeatmapGrid({
                     </div>
                   </td>
 
-                  {SKILL_DEFS.map((skill) => {
+                  {sportSkills.map((skill) => {
                     const role = computeVisualRole(
                       skill.id,
                       mastery,
@@ -316,7 +348,6 @@ function HeatmapGrid({
             })}
           </tbody>
 
-          {/* Team summary row */}
           <tfoot>
             <tr>
               <td className="sticky left-0 z-10 bg-surface px-3 py-2">
@@ -328,7 +359,7 @@ function HeatmapGrid({
                 <td
                   key={i}
                   className="border-l border-border-subtle bg-surface px-0.5 py-1.5 text-center"
-                  title={`${SKILL_DEFS[i].label}: ${pct}% of team`}
+                  title={`${sportSkills[i].label}: ${pct}% of team`}
                 >
                   <span
                     className={`text-[9px] font-bold tabular-nums ${pctColor(pct)}`}
@@ -343,8 +374,8 @@ function HeatmapGrid({
         </table>
       </div>
 
-      {/* Team gap callouts */}
       <TeamGaps
+        sport={sport}
         athleteMastery={athleteMastery}
         athleteReadiness={athleteReadiness}
       />
@@ -355,44 +386,57 @@ function HeatmapGrid({
 /* ── Team Gap Analysis ── */
 
 function TeamGaps({
+  sport,
   athleteMastery,
   athleteReadiness,
 }: {
+  sport: Sport
   athleteMastery: Record<string, Set<string>>
   athleteReadiness: Record<string, number>
 }) {
-  const gaps = SKILL_DEFS.filter((skill) => {
-    const count = ATHLETES.filter((a) =>
+  const sportSkills = skillsForSport(sport)
+  const filtered = ATHLETES.filter((a) => a.sport === sport)
+
+  const gaps = sportSkills.filter((skill) => {
+    const count = filtered.filter((a) =>
       (athleteMastery[a.id] ?? new Set()).has(skill.id),
     ).length
     return count === 0
   })
 
-  const avgReadiness = Math.round(
-    ATHLETES.reduce((sum, a) => sum + (athleteReadiness[a.id] ?? 100), 0) /
-      ATHLETES.length,
-  )
+  const avgReadiness = filtered.length > 0
+    ? Math.round(
+        filtered.reduce((sum, a) => sum + (athleteReadiness[a.id] ?? 100), 0) /
+          filtered.length,
+      )
+    : 0
 
-  const avgMastery = Math.round(
-    (ATHLETES.reduce(
-      (sum, a) => sum + (athleteMastery[a.id]?.size ?? 0),
-      0,
-    ) /
-      (ATHLETES.length * SKILL_DEFS.length)) *
-      100,
-  )
+  const avgMastery = filtered.length > 0 && sportSkills.length > 0
+    ? Math.round(
+        (filtered.reduce(
+          (sum, a) => sum + sportSkills.filter((s) => (athleteMastery[a.id] ?? new Set()).has(s.id)).length,
+          0,
+        ) /
+          (filtered.length * sportSkills.length)) *
+          100,
+      )
+    : 0
 
-  const topAthlete = ATHLETES.reduce((best, a) => {
-    const cur = athleteMastery[a.id]?.size ?? 0
-    const bestCount = athleteMastery[best.id]?.size ?? 0
-    return cur > bestCount ? a : best
-  })
+  const topAthlete = filtered.length > 0
+    ? filtered.reduce((best, a) => {
+        const cur = sportSkills.filter((s) => (athleteMastery[a.id] ?? new Set()).has(s.id)).length
+        const bestCount = sportSkills.filter((s) => (athleteMastery[best.id] ?? new Set()).has(s.id)).length
+        return cur > bestCount ? a : best
+      })
+    : null
 
-  const needsAttention = ATHLETES.reduce((worst, a) => {
-    const cur = athleteMastery[a.id]?.size ?? 0
-    const worstCount = athleteMastery[worst.id]?.size ?? 0
-    return cur < worstCount ? a : worst
-  })
+  const needsAttention = filtered.length > 0
+    ? filtered.reduce((worst, a) => {
+        const cur = sportSkills.filter((s) => (athleteMastery[a.id] ?? new Set()).has(s.id)).length
+        const worstCount = sportSkills.filter((s) => (athleteMastery[worst.id] ?? new Set()).has(s.id)).length
+        return cur < worstCount ? a : worst
+      })
+    : null
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -412,18 +456,22 @@ function TeamGaps({
               : 'text-red-400'
         }
       />
-      <StatCard
-        label="Most Advanced"
-        value={topAthlete.firstName}
-        sub={`${athleteMastery[topAthlete.id]?.size ?? 0}/${SKILL_DEFS.length} skills`}
-        color="text-emerald-400"
-      />
-      <StatCard
-        label="Needs Attention"
-        value={needsAttention.firstName}
-        sub={`${athleteMastery[needsAttention.id]?.size ?? 0}/${SKILL_DEFS.length} skills`}
-        color="text-amber-400"
-      />
+      {topAthlete && (
+        <StatCard
+          label="Most Advanced"
+          value={topAthlete.firstName}
+          sub={`${sportSkills.filter((s) => (athleteMastery[topAthlete.id] ?? new Set()).has(s.id)).length}/${sportSkills.length} skills`}
+          color="text-emerald-400"
+        />
+      )}
+      {needsAttention && (
+        <StatCard
+          label="Needs Attention"
+          value={needsAttention.firstName}
+          sub={`${sportSkills.filter((s) => (athleteMastery[needsAttention.id] ?? new Set()).has(s.id)).length}/${sportSkills.length} skills`}
+          color="text-amber-400"
+        />
+      )}
 
       {gaps.length > 0 && (
         <div className="col-span-full border border-border-subtle bg-surface-raised p-3">
@@ -478,6 +526,9 @@ export function TeamDashboard({
   onReplayTour: () => void
 }) {
   const [tab, setTab] = useState<Tab>('roster')
+  const selectedSport = useFrontierStore((s) => s.selectedSport)
+  const setSelectedSport = useFrontierStore((s) => s.setSelectedSport)
+  const filteredCount = ATHLETES.filter((a) => a.sport === selectedSport).length
 
   return (
     <div className="min-h-[100dvh] bg-[#0a0b10]">
@@ -496,30 +547,51 @@ export function TeamDashboard({
                 Texas Sports Academy
               </h1>
               <p className="mt-1 text-xs text-slate-500">
-                Baseball Development · {ATHLETES.length} athletes
+                {SPORT_LABEL[selectedSport]} · {filteredCount} athletes
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onReplayTour}
-              className="shrink-0 bg-alpha/15 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-alpha-light transition hover:bg-alpha/25"
-            >
-              Tour
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onReplayTour}
+                className="shrink-0 bg-alpha/15 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-alpha-light transition hover:bg-alpha/25"
+              >
+                Tour
+              </button>
+              <RoleToggle />
+            </div>
           </div>
 
-          {/* Tabs */}
-          <div className="mt-4 flex gap-1">
-            <TabBtn active={tab === 'roster'} onClick={() => setTab('roster')}>
-              Roster
-            </TabBtn>
-            <TabBtn
-              active={tab === 'heatmap'}
-              onClick={() => setTab('heatmap')}
-              dataTour="heatmap-tab"
-            >
-              Team Heatmap
-            </TabBtn>
+          {/* Sport filter + view tabs */}
+          <div className="mt-4 flex items-end justify-between gap-4">
+            <div className="flex gap-1">
+              <TabBtn active={tab === 'roster'} onClick={() => setTab('roster')}>
+                Roster
+              </TabBtn>
+              <TabBtn
+                active={tab === 'heatmap'}
+                onClick={() => setTab('heatmap')}
+                dataTour="heatmap-tab"
+              >
+                Team Heatmap
+              </TabBtn>
+            </div>
+            <div className="flex gap-1 pb-px">
+              {SPORTS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSelectedSport(s)}
+                  className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition ${
+                    selectedSport === s
+                      ? 'bg-surface-elevated text-white'
+                      : 'text-slate-600 hover:text-slate-400'
+                  }`}
+                >
+                  {SPORT_LABEL[s]}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </header>
@@ -528,16 +600,15 @@ export function TeamDashboard({
       <div className="mx-auto max-w-6xl px-4 py-5 md:px-6">
         {tab === 'roster' ? (
           <>
-            {/* Tour anchor: positions tooltip below tabs without clipping (see tour step 2) */}
             <div
               data-tour="roster-tour-anchor"
               className="mb-4 h-px w-full shrink-0 bg-border-subtle/50"
               aria-hidden
             />
-            <RosterGrid onSelectAthlete={onSelectAthlete} />
+            <RosterGrid sport={selectedSport} onSelectAthlete={onSelectAthlete} />
           </>
         ) : (
-          <HeatmapGrid onSelectAthlete={onSelectAthlete} />
+          <HeatmapGrid sport={selectedSport} onSelectAthlete={onSelectAthlete} />
         )}
       </div>
     </div>

@@ -38,7 +38,7 @@ export function getDashboardTourSteps(): Step[] {
       target: '[data-tour="dashboard-header"]',
       title: 'Welcome to Frontier OS',
       content:
-        'The coaching dashboard for Texas Sports Academy. This tour covers the roster, team heatmap, and walks through every learning-science technique powering athlete development.',
+        'The coaching dashboard for Texas Sports Academy. This tour covers the roster, team heatmap, coach vs. athlete views, and walks through every learning-science technique powering development.',
       placement: 'bottom',
       skipBeacon: true,
     },
@@ -55,6 +55,13 @@ export function getDashboardTourSteps(): Step[] {
       title: 'Team Heatmap',
       content:
         'Switch tabs to see all athletes \u00d7 all skills in one grid. Instantly spot team-wide gaps and identify who needs focused coaching.',
+      placement: 'bottom',
+    },
+    {
+      target: '[data-tour="role-toggle"]',
+      title: 'Coach vs. Athlete view',
+      content:
+        'Toggle between Coach and Athlete mode. Coaches see the full roster, heatmap, and skill tree. Athletes see only their daily tasks, progress ring, and next skills to unlock \u2014 no full tree. This keeps them focused on today instead of overwhelmed by the whole map.',
       placement: 'bottom',
     },
     {

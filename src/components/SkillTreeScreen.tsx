@@ -1,13 +1,14 @@
 import { useCallback, useState } from 'react'
 import { ATHLETE_BY_ID, getInitials } from '../data/athletes'
-import { SKILL_BY_ID } from '../data/graph'
-import { FUTURE_ROADMAP_ITEMS, TECHNIQUE_SWATCH, TODAY_TASKS } from '../data/student'
+import { SKILL_BY_ID, readinessBand } from '../data/graph'
+import { FUTURE_ROADMAP_ITEMS, TECHNIQUE_SWATCH, tasksForSport } from '../data/student'
 import { statusBlurb, statusHeadline } from '../lib/skillStatusCopy'
 import {
   computeVisualRole,
   isClickableFrontier,
   useFrontierStore,
 } from '../store/useFrontierStore'
+import { RoleToggle } from './RoleToggle'
 import { SkillTreeView } from './skill-tree/SkillTreeView'
 
 const ROLE_COLOR: Record<string, string> = {
@@ -15,6 +16,13 @@ const ROLE_COLOR: Record<string, string> = {
   frontier: '#3b82f6',
   highRisk: '#f59e0b',
   locked: '#475569',
+}
+
+function readinessDotColor(score: number): string {
+  const band = readinessBand(score)
+  if (band === 'full') return 'bg-emerald-500'
+  if (band === 'moderate') return 'bg-amber-500'
+  return 'bg-rose-500'
 }
 
 export function SkillTreeScreen({
@@ -28,11 +36,11 @@ export function SkillTreeScreen({
   const selectedAthleteId = useFrontierStore((s) => s.selectedAthleteId)
   const resetDemo = useFrontierStore((s) => s.resetDemo)
   const readinessScore = useFrontierStore((s) => s.readinessScore)
-  const setReadinessScore = useFrontierStore((s) => s.setReadinessScore)
   const mastered = useFrontierStore((s) => s.mastered)
   const toggleMaster = useFrontierStore((s) => s.toggleMaster)
 
   const athlete = ATHLETE_BY_ID[selectedAthleteId]
+  const tasks = athlete ? tasksForSport(athlete.sport) : []
 
   const onMarkDone = useCallback(() => {
     if (selectedId) toggleMaster(selectedId)
@@ -78,6 +86,15 @@ export function SkillTreeScreen({
             {athlete?.position} &middot; Age {athlete?.age}
           </p>
         </div>
+
+        {/* Read-only readiness badge */}
+        <div className="hidden items-center gap-1.5 sm:flex">
+          <span className={`h-2 w-2 ${readinessDotColor(readinessScore)}`} />
+          <span className="text-[10px] font-bold tabular-nums text-slate-400">
+            {readinessScore}%
+          </span>
+        </div>
+
         <button
           type="button"
           onClick={resetDemo}
@@ -92,6 +109,7 @@ export function SkillTreeScreen({
         >
           Tour
         </button>
+        <RoleToggle />
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -100,29 +118,6 @@ export function SkillTreeScreen({
         </div>
 
         <aside className="flex w-full shrink-0 flex-col border-t border-border-subtle bg-surface lg:w-[280px] lg:border-l lg:border-t-0">
-          {/* Readiness */}
-          <div data-tour="readiness-strip" className="border-b border-border-subtle p-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Readiness</p>
-              <span className="text-xs font-bold tabular-nums text-white">{readinessScore}%</span>
-            </div>
-            <div className="mt-2 h-1.5 w-full overflow-hidden bg-surface-elevated">
-              <div
-                className="h-full bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-500 transition-[width]"
-                style={{ width: `${readinessScore}%` }}
-              />
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={readinessScore}
-              onChange={(e) => setReadinessScore(Number(e.target.value))}
-              className="mt-2 h-2 w-full"
-              aria-label="Adjust readiness"
-            />
-          </div>
-
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* Node inspector */}
             <div data-tour="node-inspector" className="border-b border-border-subtle p-3">
@@ -187,7 +182,7 @@ export function SkillTreeScreen({
             <div className="flex flex-1 flex-col overflow-y-auto p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Today</p>
               <ul data-tour="today-tasks" className="mt-2 space-y-1">
-                {TODAY_TASKS.map((t) => (
+                {tasks.map((t) => (
                   <li key={t.id} data-tour={`task-${t.id}`} className="flex gap-2 bg-surface-elevated/60">
                     <span
                       className="w-1 shrink-0 self-stretch"

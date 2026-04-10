@@ -9,6 +9,7 @@ import {
   type NodeTypes,
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo } from 'react'
+import { ATHLETE_BY_ID } from '../../data/athletes'
 import { buildLinks } from '../../data/graph'
 import { layoutSkillTree } from '../../lib/skillTreeLayout'
 import { computeVisualRole, useFrontierStore } from '../../store/useFrontierStore'
@@ -38,12 +39,25 @@ export function SkillTreeView({
   selectedId: string | null
   onSelectNode: (id: string | null) => void
 }) {
-  const { nodes: initialNodes, edges: initialEdges } = useMemo(() => layoutSkillTree(), [])
+  const selectedAthleteId = useFrontierStore((s) => s.selectedAthleteId)
+  const athlete = ATHLETE_BY_ID[selectedAthleteId]
+  const sport = athlete?.sport ?? 'baseball'
+
+  const { nodes: initialNodes, edges: initialEdges } = useMemo(
+    () => layoutSkillTree(sport),
+    [sport],
+  )
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
   const mastered = useFrontierStore((s) => s.mastered)
   const readinessScore = useFrontierStore((s) => s.readinessScore)
+
+  useEffect(() => {
+    const layout = layoutSkillTree(sport)
+    setNodes(layout.nodes.map((n) => ({ ...n, selected: n.id === selectedId })))
+    setEdges(layout.edges)
+  }, [sport, setNodes, setEdges, selectedId])
 
   useEffect(() => {
     setNodes((nds) =>
@@ -55,7 +69,7 @@ export function SkillTreeView({
   }, [selectedId, setNodes])
 
   useEffect(() => {
-    const links = buildLinks()
+    const links = buildLinks(sport)
     setEdges(
       links.map((l, i) => {
         const { stroke, width, animated } = edgeStrokeForTarget(l.target, mastered, readinessScore)
@@ -69,7 +83,7 @@ export function SkillTreeView({
         } satisfies Edge
       }),
     )
-  }, [mastered, readinessScore, setEdges])
+  }, [mastered, readinessScore, setEdges, sport])
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: { id: string }) => {
