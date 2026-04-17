@@ -239,6 +239,7 @@ function HeatmapGrid({
   const athleteMastery = useFrontierStore((s) => s.athleteMastery)
   const athleteReadiness = useFrontierStore((s) => s.athleteReadiness)
   const athleteSkillProgress = useFrontierStore((s) => s.athleteSkillProgress)
+  const athleteDiagnostic = useFrontierStore((s) => s.athleteDiagnostic)
   const skillById = useFrontierStore((s) => s.skillById)
   const sportData = useFrontierStore((s) => s.sportData)
   const getAthletesForSport = useFrontierStore((s) => s.getAthletesForSport)
@@ -247,19 +248,24 @@ function HeatmapGrid({
   const sportSkills = getSkillsForSport(sport)
   const filtered = getAthletesForSport(sport)
 
+  // Only onboarded athletes (those with a diagnostic record) contribute real
+  // mastery/progress data. Un-onboarded athletes render empty rows.
+  const isOnboarded = (id: string) => !!athleteDiagnostic[id]
+  const onboardedAthletes = filtered.filter((a) => isOnboarded(a.id))
+
   const levels = [1, 2, 3, 4, 5, 6] as const
   const skillsByLevel = levels.map((l) =>
     sportSkills.filter((s) => s.level === l),
   ).filter((arr) => arr.length > 0)
   const usedLevels = skillsByLevel.map((arr) => arr[0].level)
 
-  // Per-skill team summary: % of team who mastered AND avg in-progress XP across
-  // athletes who are working on it but haven't mastered yet.
+  // Per-skill team summary — only counts onboarded athletes so sample data for
+  // un-onboarded athletes doesn't leak into team aggregates.
   const teamSkillSummary = sportSkills.map((skill) => {
-    const mastered = filtered.filter((a) =>
+    const mastered = onboardedAthletes.filter((a) =>
       (athleteMastery[a.id] ?? new Set()).has(skill.id),
     ).length
-    const inProgress = filtered.filter(
+    const inProgress = onboardedAthletes.filter(
       (a) =>
         !(athleteMastery[a.id] ?? new Set()).has(skill.id) &&
         (athleteSkillProgress[a.id]?.[skill.id] ?? 0) > 0,
@@ -274,7 +280,9 @@ function HeatmapGrid({
           )
         : 0
     const masteryPct =
-      filtered.length > 0 ? Math.round((mastered / filtered.length) * 100) : 0
+      onboardedAthletes.length > 0
+        ? Math.round((mastered / onboardedAthletes.length) * 100)
+        : 0
     return { masteryPct, avgProgress, inProgressCount: inProgress.length }
   })
 
@@ -349,9 +357,16 @@ function HeatmapGrid({
 
           <tbody>
             {filtered.map((athlete) => {
-              const mastery = athleteMastery[athlete.id] ?? new Set<string>()
-              const readiness = athleteReadiness[athlete.id] ?? 100
-              const progressMap = athleteSkillProgress[athlete.id] ?? {}
+              const onboarded = isOnboarded(athlete.id)
+              const mastery = onboarded
+                ? athleteMastery[athlete.id] ?? new Set<string>()
+                : new Set<string>()
+              const readiness = onboarded
+                ? athleteReadiness[athlete.id] ?? 100
+                : 100
+              const progressMap = onboarded
+                ? athleteSkillProgress[athlete.id] ?? {}
+                : {}
               const sportMastered = sportSkills.filter((s) => mastery.has(s.id)).length
               const masteryPct = sportSkills.length > 0
                 ? Math.round((sportMastered / sportSkills.length) * 100)
@@ -370,7 +385,9 @@ function HeatmapGrid({
               return (
                 <tr
                   key={athlete.id}
-                  className="group cursor-pointer transition hover:bg-surface-elevated/50"
+                  className={`group cursor-pointer transition hover:bg-surface-elevated/50 ${
+                    onboarded ? '' : 'opacity-60'
+                  }`}
                   onClick={() => onSelectAthlete(athlete.id)}
                 >
                   <td className="sticky left-0 z-10 border-b border-border-subtle bg-surface-raised px-3 py-2 group-hover:bg-surface-elevated">
@@ -381,13 +398,27 @@ function HeatmapGrid({
                           {athlete.firstName}
                         </p>
                         <p className="truncate text-[9px] text-slate-600">
-                          {athlete.position}
+                          {onboarded ? athlete.position : 'Not onboarded'}
                         </p>
                       </div>
                     </div>
                   </td>
 
                   {sportSkills.map((skill) => {
+                    if (!onboarded) {
+                      return (
+                        <td
+                          key={skill.id}
+                          className="border-b border-l border-border-subtle px-0.5 py-1.5 text-center"
+                          title={`${athlete.firstName} has not been onboarded yet`}
+                        >
+                          <span
+                            className="mx-auto block h-5 w-5"
+                            style={{ backgroundColor: ROLE_CELL_BG.locked }}
+                          />
+                        </td>
+                      )
+                    }
                     const role = computeVisualRole(
                       skill.id,
                       mastery,
@@ -413,7 +444,6 @@ function HeatmapGrid({
                           <span
                             className="relative mx-auto block h-5 w-5 overflow-hidden"
                             style={{
-                              // Dimmed base of the role color so the fill reads.
                               backgroundColor: role === 'highRisk' ? '#4a3410' : '#1e2a4a',
                             }}
                           >
@@ -435,13 +465,21 @@ function HeatmapGrid({
 
                   <td
                     className="border-b border-l border-border-subtle px-2 py-1.5 text-center"
-                    title={`${masteryPct}% mastered · ${pct}% progress-weighted`}
+                    title={
+                      onboarded
+                        ? `${masteryPct}% mastered · ${pct}% progress-weighted`
+                        : 'Not onboarded'
+                    }
                   >
-                    <span
-                      className={`text-[11px] font-bold tabular-nums ${pctColor(pct)}`}
-                    >
-                      {pct}%
-                    </span>
+                    {onboarded ? (
+                      <span
+                        className={`text-[11px] font-bold tabular-nums ${pctColor(pct)}`}
+                      >
+                        {pct}%
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-medium text-slate-600">—</span>
+                    )}
                   </td>
                 </tr>
               )
@@ -494,11 +532,15 @@ function TeamGaps({ sport }: { sport: string }) {
   const athleteMastery = useFrontierStore((s) => s.athleteMastery)
   const athleteReadiness = useFrontierStore((s) => s.athleteReadiness)
   const athleteSkillProgress = useFrontierStore((s) => s.athleteSkillProgress)
+  const athleteDiagnostic = useFrontierStore((s) => s.athleteDiagnostic)
   const getAthletesForSport = useFrontierStore((s) => s.getAthletesForSport)
   const getSkillsForSport = useFrontierStore((s) => s.getSkillsForSport)
 
   const sportSkills = getSkillsForSport(sport)
-  const filtered = getAthletesForSport(sport)
+  const allOnSport = getAthletesForSport(sport)
+  // Only onboarded athletes contribute to team aggregates.
+  const filtered = allOnSport.filter((a) => !!athleteDiagnostic[a.id])
+  const pendingCount = allOnSport.length - filtered.length
 
   // Weighted score per athlete: mastered skills = 1.0, in-progress = xp/100.
   const weightedScore = (athleteId: string): number => {
@@ -566,12 +608,31 @@ function TeamGaps({ sport }: { sport: string }) {
       )
     : null
 
+  if (filtered.length === 0) {
+    return (
+      <div className="border border-border-subtle bg-surface-raised p-4 text-center">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          No team data yet
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          {pendingCount > 0
+            ? `Onboard ${pendingCount} athlete${pendingCount === 1 ? '' : 's'} to populate the team heatmap.`
+            : 'Add athletes to this sport to see team progress.'}
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <StatCard
         label="Team Progress"
         value={`${avgProgressPct}%`}
-        sub={`${avgMasteryPct}% mastered`}
+        sub={
+          pendingCount > 0
+            ? `${avgMasteryPct}% mastered · ${pendingCount} pending onboarding`
+            : `${avgMasteryPct}% mastered`
+        }
         color={pctColor(avgProgressPct)}
       />
       <StatCard
