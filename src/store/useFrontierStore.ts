@@ -71,6 +71,7 @@ export interface ReonboardStatus {
 const STORAGE_KEY = 'frontier-athlete-graphs'
 const SPORT_PLANS_KEY = 'frontier-sport-plans'
 const ATHLETE_DELTAS_KEY = 'frontier-athlete-deltas'
+const ATHLETE_DRAFT_DELTAS_KEY = 'frontier-athlete-draft-deltas'
 const MASTERY_KEY = 'frontier-athlete-mastery'
 const READINESS_KEY = 'frontier-athlete-readiness'
 const SKILL_PROGRESS_KEY = 'frontier-athlete-skill-progress'
@@ -114,6 +115,12 @@ function loadAthleteDeltasFromStorage(): Record<string, GraphDelta> {
 }
 function saveAthleteDeltasToStorage(deltas: Record<string, GraphDelta>) {
   safeSave(ATHLETE_DELTAS_KEY, deltas)
+}
+function loadAthleteDraftDeltasFromStorage(): Record<string, GraphDelta> {
+  return safeLoad(ATHLETE_DRAFT_DELTAS_KEY, {} as Record<string, GraphDelta>)
+}
+function saveAthleteDraftDeltasToStorage(drafts: Record<string, GraphDelta>) {
+  safeSave(ATHLETE_DRAFT_DELTAS_KEY, drafts)
 }
 
 function saveMasteryToStorage(mastery: Record<string, Set<string>>) {
@@ -385,6 +392,7 @@ interface FrontierState {
   athleteGraphs: Record<string, GeneratedGraph>
   sportPlans: Record<string, SportPlan>
   athleteGraphDeltas: Record<string, GraphDelta>
+  athleteGraphDraftDeltas: Record<string, GraphDelta>
 
   builderTarget: BuilderTarget | null
 
@@ -403,7 +411,12 @@ interface FrontierState {
   getSportPlan: (sport: Sport | string) => SportPlan | null
   saveAthleteDelta: (athleteId: string, delta: GraphDelta) => void
   getAthleteDelta: (athleteId: string) => GraphDelta | null
+  saveAthleteDraftDelta: (athleteId: string, delta: GraphDelta) => void
+  getAthleteDraftDelta: (athleteId: string) => GraphDelta | null
+  acceptAthleteDraft: (athleteId: string) => void
+  discardAthleteDraft: (athleteId: string) => void
   getResolvedAthleteGraph: (athleteId: string) => GeneratedGraph | null
+  getDraftResolvedAthleteGraph: (athleteId: string) => GeneratedGraph | null
   resetAthleteDelta: (athleteId: string) => void
   clearSportPlan: (sport: Sport | string) => void
 
@@ -466,6 +479,7 @@ const DEFAULT_ATHLETE = ATHLETES[0].id
 const initialGraphs = loadGraphsFromStorage()
 const initialSportPlans = loadSportPlansFromStorage()
 const initialAthleteDeltas = loadAthleteDeltasFromStorage()
+const initialAthleteDraftDeltas = loadAthleteDraftDeltasFromStorage()
 
 const storedMastery = loadMasteryFromStorage()
 const storedReadiness = loadReadinessFromStorage()
@@ -551,6 +565,7 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
   athleteGraphs: initialGraphs,
   sportPlans: initialSportPlans,
   athleteGraphDeltas: initialAthleteDeltas,
+  athleteGraphDraftDeltas: initialAthleteDraftDeltas,
   builderTarget: null,
 
   selectAthlete: (id) => {
@@ -718,6 +733,42 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     return athleteGraphDeltas[athleteId] ?? null
   },
 
+  saveAthleteDraftDelta: (athleteId, delta) => {
+    const { athleteGraphDraftDeltas } = get()
+    const next = { ...athleteGraphDraftDeltas, [athleteId]: delta }
+    set({ athleteGraphDraftDeltas: next })
+    saveAthleteDraftDeltasToStorage(next)
+  },
+
+  getAthleteDraftDelta: (athleteId) => {
+    const { athleteGraphDraftDeltas } = get()
+    return athleteGraphDraftDeltas[athleteId] ?? null
+  },
+
+  acceptAthleteDraft: (athleteId) => {
+    const { athleteGraphDraftDeltas, athleteGraphDeltas, athleteGraphs } = get()
+    const draft = athleteGraphDraftDeltas[athleteId]
+    if (!draft) return
+    const nextDeltas = { ...athleteGraphDeltas, [athleteId]: draft }
+    const { [athleteId]: _drafted, ...restDrafts } = athleteGraphDraftDeltas
+    set({ athleteGraphDeltas: nextDeltas, athleteGraphDraftDeltas: restDrafts })
+    saveAthleteDeltasToStorage(nextDeltas)
+    saveAthleteDraftDeltasToStorage(restDrafts)
+    if (athleteGraphs[athleteId]) {
+      const { [athleteId]: _legacy, ...restGraphs } = athleteGraphs
+      set({ athleteGraphs: restGraphs })
+      saveGraphsToStorage(restGraphs)
+    }
+  },
+
+  discardAthleteDraft: (athleteId) => {
+    const { athleteGraphDraftDeltas } = get()
+    if (!(athleteId in athleteGraphDraftDeltas)) return
+    const { [athleteId]: _removed, ...rest } = athleteGraphDraftDeltas
+    set({ athleteGraphDraftDeltas: rest })
+    saveAthleteDraftDeltasToStorage(rest)
+  },
+
   getResolvedAthleteGraph: (athleteId) => {
     const { sportPlans, athleteGraphDeltas, athleteGraphs, sportData } = get()
     const athlete = sportData.athletes.find((a) => a.id === athleteId)
@@ -728,15 +779,34 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     return resolveAthleteGraph(plan, delta, legacy)
   },
 
+  getDraftResolvedAthleteGraph: (athleteId) => {
+    const { sportPlans, athleteGraphDeltas, athleteGraphDraftDeltas, athleteGraphs, sportData } = get()
+    const athlete = sportData.athletes.find((a) => a.id === athleteId)
+    const sport = athlete?.sport
+    const plan = sport ? sportPlans[String(sport)] ?? null : null
+    const draft = athleteGraphDraftDeltas[athleteId] ?? null
+    if (draft) {
+      return resolveAthleteGraph(plan, draft, athleteGraphs[athleteId] ?? null)
+    }
+    const delta = athleteGraphDeltas[athleteId] ?? null
+    return resolveAthleteGraph(plan, delta, athleteGraphs[athleteId] ?? null)
+  },
+
   resetAthleteDelta: (athleteId) => {
-    const { athleteGraphDeltas, athleteGraphs } = get()
+    const { athleteGraphDeltas, athleteGraphDraftDeltas, athleteGraphs } = get()
     const hasDelta = athleteId in athleteGraphDeltas
+    const hasDraft = athleteId in athleteGraphDraftDeltas
     const hasLegacy = athleteId in athleteGraphs
-    if (!hasDelta && !hasLegacy) return
+    if (!hasDelta && !hasDraft && !hasLegacy) return
     if (hasDelta) {
       const { [athleteId]: _d, ...restDeltas } = athleteGraphDeltas
       set({ athleteGraphDeltas: restDeltas })
       saveAthleteDeltasToStorage(restDeltas)
+    }
+    if (hasDraft) {
+      const { [athleteId]: _draft, ...restDrafts } = athleteGraphDraftDeltas
+      set({ athleteGraphDraftDeltas: restDrafts })
+      saveAthleteDraftDeltasToStorage(restDrafts)
     }
     if (hasLegacy) {
       const { [athleteId]: _g, ...restGraphs } = athleteGraphs
@@ -747,7 +817,7 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
 
   clearSportPlan: (sport) => {
     const key = String(sport)
-    const { sportPlans, athleteGraphDeltas, athleteGraphs, sportData } = get()
+    const { sportPlans, athleteGraphDeltas, athleteGraphDraftDeltas, athleteGraphs, sportData } = get()
     const athleteIdsOnSport = new Set(
       sportData.athletes.filter((a) => a.sport === key).map((a) => a.id),
     )
@@ -770,6 +840,20 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     if (deltasChanged) {
       set({ athleteGraphDeltas: nextDeltas })
       saveAthleteDeltasToStorage(nextDeltas)
+    }
+
+    const nextDrafts: Record<string, GraphDelta> = {}
+    let draftsChanged = false
+    for (const [aid, delta] of Object.entries(athleteGraphDraftDeltas)) {
+      if (athleteIdsOnSport.has(aid)) {
+        draftsChanged = true
+        continue
+      }
+      nextDrafts[aid] = delta
+    }
+    if (draftsChanged) {
+      set({ athleteGraphDraftDeltas: nextDrafts })
+      saveAthleteDraftDeltasToStorage(nextDrafts)
     }
 
     const nextGraphs: Record<string, GeneratedGraph> = {}

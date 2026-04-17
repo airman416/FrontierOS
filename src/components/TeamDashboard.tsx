@@ -238,6 +238,7 @@ function HeatmapGrid({
 }) {
   const athleteMastery = useFrontierStore((s) => s.athleteMastery)
   const athleteReadiness = useFrontierStore((s) => s.athleteReadiness)
+  const athleteSkillProgress = useFrontierStore((s) => s.athleteSkillProgress)
   const skillById = useFrontierStore((s) => s.skillById)
   const sportData = useFrontierStore((s) => s.sportData)
   const getAthletesForSport = useFrontierStore((s) => s.getAthletesForSport)
@@ -252,11 +253,29 @@ function HeatmapGrid({
   ).filter((arr) => arr.length > 0)
   const usedLevels = skillsByLevel.map((arr) => arr[0].level)
 
-  const teamMasteryBySkill = sportSkills.map((skill) => {
-    const count = filtered.filter((a) =>
+  // Per-skill team summary: % of team who mastered AND avg in-progress XP across
+  // athletes who are working on it but haven't mastered yet.
+  const teamSkillSummary = sportSkills.map((skill) => {
+    const mastered = filtered.filter((a) =>
       (athleteMastery[a.id] ?? new Set()).has(skill.id),
     ).length
-    return filtered.length > 0 ? Math.round((count / filtered.length) * 100) : 0
+    const inProgress = filtered.filter(
+      (a) =>
+        !(athleteMastery[a.id] ?? new Set()).has(skill.id) &&
+        (athleteSkillProgress[a.id]?.[skill.id] ?? 0) > 0,
+    )
+    const avgProgress =
+      inProgress.length > 0
+        ? Math.round(
+            inProgress.reduce(
+              (sum, a) => sum + (athleteSkillProgress[a.id]?.[skill.id] ?? 0),
+              0,
+            ) / inProgress.length,
+          )
+        : 0
+    const masteryPct =
+      filtered.length > 0 ? Math.round((mastered / filtered.length) * 100) : 0
+    return { masteryPct, avgProgress, inProgressCount: inProgress.length }
   })
 
   return (
@@ -274,6 +293,18 @@ function HeatmapGrid({
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-3 w-3" style={{ backgroundColor: '#1e2030' }} /> Locked
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className="relative h-3 w-3 overflow-hidden"
+            style={{ backgroundColor: '#1e2a4a' }}
+          >
+            <span
+              className="absolute inset-x-0 bottom-0 bg-blue-500"
+              style={{ height: '60%' }}
+            />
+          </span>
+          Fill = XP progress
         </span>
       </div>
 
@@ -320,9 +351,20 @@ function HeatmapGrid({
             {filtered.map((athlete) => {
               const mastery = athleteMastery[athlete.id] ?? new Set<string>()
               const readiness = athleteReadiness[athlete.id] ?? 100
+              const progressMap = athleteSkillProgress[athlete.id] ?? {}
               const sportMastered = sportSkills.filter((s) => mastery.has(s.id)).length
-              const pct = sportSkills.length > 0
+              const masteryPct = sportSkills.length > 0
                 ? Math.round((sportMastered / sportSkills.length) * 100)
+                : 0
+              // Progress-weighted score: mastered skills count as 1.0, in-progress
+              // skills contribute xp/100 (clamped), locked/untouched count as 0.
+              const weightedSum = sportSkills.reduce((sum, s) => {
+                if (mastery.has(s.id)) return sum + 1
+                const xp = Math.max(0, Math.min(100, progressMap[s.id] ?? 0))
+                return sum + xp / 100
+              }, 0)
+              const pct = sportSkills.length > 0
+                ? Math.round((weightedSum / sportSkills.length) * 100)
                 : 0
 
               return (
@@ -352,21 +394,49 @@ function HeatmapGrid({
                       readiness,
                       skillById,
                     )
+                    const baseColor = ROLE_CELL_BG[role]
+                    const isMastered = role === 'mastered'
+                    const xp = isMastered
+                      ? 100
+                      : Math.max(0, Math.min(100, progressMap[skill.id] ?? 0))
+                    const showProgressFill = !isMastered && xp > 0
+                    const tooltip = showProgressFill
+                      ? `${athlete.firstName}: ${skill.label} — ${role} · ${xp}% xp`
+                      : `${athlete.firstName}: ${skill.label} — ${role}`
                     return (
                       <td
                         key={skill.id}
                         className="border-b border-l border-border-subtle px-0.5 py-1.5 text-center"
-                        title={`${athlete.firstName}: ${skill.label} — ${role}`}
+                        title={tooltip}
                       >
-                        <span
-                          className="mx-auto block h-5 w-5"
-                          style={{ backgroundColor: ROLE_CELL_BG[role] }}
-                        />
+                        {showProgressFill ? (
+                          <span
+                            className="relative mx-auto block h-5 w-5 overflow-hidden"
+                            style={{
+                              // Dimmed base of the role color so the fill reads.
+                              backgroundColor: role === 'highRisk' ? '#4a3410' : '#1e2a4a',
+                            }}
+                          >
+                            <span
+                              className="absolute inset-x-0 bottom-0"
+                              style={{ height: `${xp}%`, backgroundColor: baseColor }}
+                              aria-hidden
+                            />
+                          </span>
+                        ) : (
+                          <span
+                            className="mx-auto block h-5 w-5"
+                            style={{ backgroundColor: baseColor }}
+                          />
+                        )}
                       </td>
                     )
                   })}
 
-                  <td className="border-b border-l border-border-subtle px-2 py-1.5 text-center">
+                  <td
+                    className="border-b border-l border-border-subtle px-2 py-1.5 text-center"
+                    title={`${masteryPct}% mastered · ${pct}% progress-weighted`}
+                  >
                     <span
                       className={`text-[11px] font-bold tabular-nums ${pctColor(pct)}`}
                     >
@@ -385,17 +455,26 @@ function HeatmapGrid({
                   Team %
                 </span>
               </td>
-              {teamMasteryBySkill.map((pct, i) => (
+              {teamSkillSummary.map((s, i) => (
                 <td
                   key={i}
                   className="border-l border-border-subtle bg-surface px-0.5 py-1.5 text-center"
-                  title={`${sportSkills[i].label}: ${pct}% of team`}
+                  title={
+                    s.inProgressCount > 0
+                      ? `${sportSkills[i].label}: ${s.masteryPct}% mastered · ${s.inProgressCount} in progress (avg ${s.avgProgress}% xp)`
+                      : `${sportSkills[i].label}: ${s.masteryPct}% mastered`
+                  }
                 >
                   <span
-                    className={`text-[9px] font-bold tabular-nums ${pctColor(pct)}`}
+                    className={`block text-[9px] font-bold tabular-nums ${pctColor(s.masteryPct)}`}
                   >
-                    {pct}
+                    {s.masteryPct}
                   </span>
+                  {s.inProgressCount > 0 && (
+                    <span className="block text-[8px] font-medium tabular-nums text-blue-400">
+                      +{s.avgProgress}
+                    </span>
+                  )}
                 </td>
               ))}
               <td className="border-l border-border-subtle bg-surface" />
@@ -414,17 +493,42 @@ function HeatmapGrid({
 function TeamGaps({ sport }: { sport: string }) {
   const athleteMastery = useFrontierStore((s) => s.athleteMastery)
   const athleteReadiness = useFrontierStore((s) => s.athleteReadiness)
+  const athleteSkillProgress = useFrontierStore((s) => s.athleteSkillProgress)
   const getAthletesForSport = useFrontierStore((s) => s.getAthletesForSport)
   const getSkillsForSport = useFrontierStore((s) => s.getSkillsForSport)
 
   const sportSkills = getSkillsForSport(sport)
   const filtered = getAthletesForSport(sport)
 
+  // Weighted score per athlete: mastered skills = 1.0, in-progress = xp/100.
+  const weightedScore = (athleteId: string): number => {
+    const mastered = athleteMastery[athleteId] ?? new Set<string>()
+    const progress = athleteSkillProgress[athleteId] ?? {}
+    if (sportSkills.length === 0) return 0
+    const sum = sportSkills.reduce((acc, s) => {
+      if (mastered.has(s.id)) return acc + 1
+      const xp = Math.max(0, Math.min(100, progress[s.id] ?? 0))
+      return acc + xp / 100
+    }, 0)
+    return sum / sportSkills.length
+  }
+
+  const masteredCount = (athleteId: string): number => {
+    const mastered = athleteMastery[athleteId] ?? new Set<string>()
+    return sportSkills.filter((s) => mastered.has(s.id)).length
+  }
+
+  // A skill is a "gap" only if no athlete has mastered it AND no athlete has
+  // meaningful in-progress XP (≥10%) — otherwise it's at least being worked on.
   const gaps = sportSkills.filter((skill) => {
-    const count = filtered.filter((a) =>
+    const anyMastered = filtered.some((a) =>
       (athleteMastery[a.id] ?? new Set()).has(skill.id),
-    ).length
-    return count === 0
+    )
+    if (anyMastered) return false
+    const anyProgress = filtered.some(
+      (a) => (athleteSkillProgress[a.id]?.[skill.id] ?? 0) >= 10,
+    )
+    return !anyProgress
   })
 
   const avgReadiness = filtered.length > 0
@@ -434,39 +538,41 @@ function TeamGaps({ sport }: { sport: string }) {
       )
     : 0
 
-  const avgMastery = filtered.length > 0 && sportSkills.length > 0
+  const avgMasteryPct = filtered.length > 0 && sportSkills.length > 0
     ? Math.round(
-        (filtered.reduce(
-          (sum, a) => sum + sportSkills.filter((s) => (athleteMastery[a.id] ?? new Set()).has(s.id)).length,
-          0,
-        ) /
+        (filtered.reduce((sum, a) => sum + masteredCount(a.id), 0) /
           (filtered.length * sportSkills.length)) *
           100,
       )
     : 0
 
+  const avgProgressPct = filtered.length > 0
+    ? Math.round(
+        (filtered.reduce((sum, a) => sum + weightedScore(a.id), 0) /
+          filtered.length) *
+          100,
+      )
+    : 0
+
   const topAthlete = filtered.length > 0
-    ? filtered.reduce((best, a) => {
-        const cur = sportSkills.filter((s) => (athleteMastery[a.id] ?? new Set()).has(s.id)).length
-        const bestCount = sportSkills.filter((s) => (athleteMastery[best.id] ?? new Set()).has(s.id)).length
-        return cur > bestCount ? a : best
-      })
+    ? filtered.reduce((best, a) =>
+        weightedScore(a.id) > weightedScore(best.id) ? a : best,
+      )
     : null
 
   const needsAttention = filtered.length > 0
-    ? filtered.reduce((worst, a) => {
-        const cur = sportSkills.filter((s) => (athleteMastery[a.id] ?? new Set()).has(s.id)).length
-        const worstCount = sportSkills.filter((s) => (athleteMastery[worst.id] ?? new Set()).has(s.id)).length
-        return cur < worstCount ? a : worst
-      })
+    ? filtered.reduce((worst, a) =>
+        weightedScore(a.id) < weightedScore(worst.id) ? a : worst,
+      )
     : null
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <StatCard
-        label="Team Mastery"
-        value={`${avgMastery}%`}
-        color={pctColor(avgMastery)}
+        label="Team Progress"
+        value={`${avgProgressPct}%`}
+        sub={`${avgMasteryPct}% mastered`}
+        color={pctColor(avgProgressPct)}
       />
       <StatCard
         label="Avg Readiness"
@@ -483,7 +589,7 @@ function TeamGaps({ sport }: { sport: string }) {
         <StatCard
           label="Most Advanced"
           value={topAthlete.firstName}
-          sub={`${sportSkills.filter((s) => (athleteMastery[topAthlete.id] ?? new Set()).has(s.id)).length}/${sportSkills.length} skills`}
+          sub={`${masteredCount(topAthlete.id)}/${sportSkills.length} skills · ${Math.round(weightedScore(topAthlete.id) * 100)}%`}
           color="text-emerald-400"
         />
       )}
@@ -491,7 +597,7 @@ function TeamGaps({ sport }: { sport: string }) {
         <StatCard
           label="Needs Attention"
           value={needsAttention.firstName}
-          sub={`${sportSkills.filter((s) => (athleteMastery[needsAttention.id] ?? new Set()).has(s.id)).length}/${sportSkills.length} skills`}
+          sub={`${masteredCount(needsAttention.id)}/${sportSkills.length} skills · ${Math.round(weightedScore(needsAttention.id) * 100)}%`}
           color="text-amber-400"
         />
       )}
@@ -499,7 +605,7 @@ function TeamGaps({ sport }: { sport: string }) {
       {gaps.length > 0 && (
         <div className="col-span-full border border-border-subtle bg-surface-raised p-3">
           <p className="text-[10px] font-bold uppercase tracking-wider text-rose-400">
-            Team Gaps — No one has mastered
+            Team Gaps — No one mastering or progressing
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {gaps.map((s) => (

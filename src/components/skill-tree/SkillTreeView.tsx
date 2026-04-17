@@ -10,6 +10,7 @@ import {
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { SkillDef } from '../../data/graph'
+import type { DeltaView, Divergence } from '../../lib/graphDelta'
 import { layoutSkillTree } from '../../lib/skillTreeLayout'
 import { computeVisualRole, useFrontierStore } from '../../store/useFrontierStore'
 import { LaneNode } from './LaneNode'
@@ -40,12 +41,16 @@ export function SkillTreeView({
   onSelectNode,
   skillDefs,
   athleteId,
+  deltaView,
 }: {
   selectedId: string | null
   onSelectNode: (id: string | null) => void
   skillDefs?: SkillDef[]
   /** When set, the tree renders per-athlete visuals (XP fill, conditional pips, review pulses). */
   athleteId?: string
+  /** Optional divergence overlay vs the team baseline. When provided, nodes are
+   * badged as added/tuned/removed and removed-skill ghosts are rendered. */
+  deltaView?: DeltaView | null
 }) {
   const selectedSport = useFrontierStore((s) => s.selectedSport)
   const getSkillsForSport = useFrontierStore((s) => s.getSkillsForSport)
@@ -54,10 +59,36 @@ export function SkillTreeView({
   const athleteReadiness = useFrontierStore((s) => s.athleteReadiness)
   const activeMastered = useFrontierStore((s) => s.mastered)
   const activeReadiness = useFrontierStore((s) => s.readinessScore)
+
+  const rfRef = useRef<{ fitView: (opts?: { padding?: number; duration?: number }) => void } | null>(null)
+
+  const baseDefs = useMemo(
+    () => skillDefs ?? getSkillsForSport(selectedSport),
+    [skillDefs, getSkillsForSport, selectedSport],
+  )
+
+  const defs: SkillDef[] = useMemo(() => {
+    if (!deltaView || deltaView.removedGhosts.length === 0) return baseDefs
+    const presentIds = new Set(baseDefs.map((s) => s.id))
+    const ghosts = deltaView.removedGhosts
+      .filter((g) => !presentIds.has(g.id))
+      .map((g) => ({ ...g, prereqs: g.prereqs.filter((p) => presentIds.has(p)) }))
+    return ghosts.length > 0 ? [...baseDefs, ...ghosts] : baseDefs
+  }, [baseDefs, deltaView])
+
+  const divergenceById = useMemo(() => {
+    const map: Record<string, Divergence> = {}
+    if (!deltaView) return map
+    for (const id of deltaView.added) map[id] = 'added'
+    for (const id of deltaView.modified) map[id] = 'modified'
+    for (const id of deltaView.removedIds) map[id] = 'removed'
+    return map
+  }, [deltaView])
+
   const scopedSkillById = useMemo(() => {
-    if (!skillDefs) return null
-    return Object.fromEntries(skillDefs.map((s) => [s.id, s]))
-  }, [skillDefs])
+    if (!skillDefs && !deltaView) return null
+    return Object.fromEntries(defs.map((s) => [s.id, s]))
+  }, [skillDefs, deltaView, defs])
   const skillById = scopedSkillById ?? storeSkillById
   const mastered = athleteId
     ? athleteMastery[athleteId] ?? new Set<string>()
@@ -65,13 +96,6 @@ export function SkillTreeView({
   const readinessScore = athleteId
     ? athleteReadiness[athleteId] ?? 100
     : activeReadiness
-
-  const rfRef = useRef<{ fitView: (opts?: { padding?: number; duration?: number }) => void } | null>(null)
-
-  const defs = useMemo(
-    () => skillDefs ?? getSkillsForSport(selectedSport),
-    [skillDefs, getSkillsForSport, selectedSport],
-  )
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
     () => layoutSkillTree(defs, undefined, { athleteId }),
@@ -83,14 +107,39 @@ export function SkillTreeView({
 
   useEffect(() => {
     const layout = layoutSkillTree(defs, undefined, { athleteId })
-    setNodes(layout.nodes)
+    setNodes(
+      layout.nodes.map((n) => {
+        if (n.type !== 'skill') return n
+        const divergence = divergenceById[n.id] ?? 'base'
+        if (divergence === 'base') return n
+        return {
+          ...n,
+          data: { ...(n.data as Record<string, unknown>), divergence },
+        }
+      }),
+    )
     setEdges(
       layout.edges.map((e) => {
+        const sourceRemoved = divergenceById[e.source] === 'removed'
+        const targetRemoved = divergenceById[e.target] === 'removed'
+        const isGhostEdge = sourceRemoved || targetRemoved
+        if (isGhostEdge) {
+          return {
+            ...e,
+            animated: false,
+            style: {
+              stroke: '#64748b',
+              strokeWidth: 1.5,
+              opacity: 0.35,
+              strokeDasharray: '4 4',
+            },
+          }
+        }
         const { stroke, width, animated } = edgeStrokeForTarget(e.target, mastered, readinessScore, skillById)
         return { ...e, animated, style: { stroke, strokeWidth: width } }
       }),
     )
-  }, [defs, athleteId, mastered, readinessScore, setNodes, setEdges, skillById])
+  }, [defs, athleteId, mastered, readinessScore, setNodes, setEdges, skillById, divergenceById])
 
   useEffect(() => {
     setNodes((nds) =>
@@ -120,6 +169,22 @@ export function SkillTreeView({
 
   return (
     <div className="relative h-full w-full">
+      {deltaView && (
+        <div className="pointer-events-none absolute right-3 top-3 z-10 flex items-center gap-2 border border-[#2e3348] bg-[#111218]/90 px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 shadow-lg backdrop-blur">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 bg-emerald-500" />
+            <span className="text-emerald-300">Added {deltaView.added.size}</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 bg-amber-500" />
+            <span className="text-amber-300">Tuned {deltaView.modified.size}</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 bg-rose-500/60" />
+            <span className="text-rose-300">Removed {deltaView.removedIds.size}</span>
+          </span>
+        </div>
+      )}
       <SkillGraphScopeContext.Provider value={scope}>
       <ReactFlow
         nodes={nodes}

@@ -11,10 +11,13 @@ import {
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo } from 'react'
 import type { SkillDef } from '../../data/graph'
+import type { DeltaView, Divergence } from '../../lib/graphDelta'
 import { layoutSkillTree } from '../../lib/skillTreeLayout'
 import { LaneNode } from '../skill-tree/LaneNode'
 import { LevelGroupNode } from '../skill-tree/LevelGroupNode'
 import { PreviewSkillNode } from './PreviewSkillNode'
+
+export type { DeltaView, Divergence } from '../../lib/graphDelta'
 
 const nodeTypes: NodeTypes = { skill: PreviewSkillNode, levelGroup: LevelGroupNode, lane: LaneNode }
 
@@ -33,15 +36,6 @@ const LEVEL_COLORS: Record<number, string> = {
   4: '#3b82f6',
   5: '#8b5cf6',
   6: '#10b981',
-}
-
-export type Divergence = 'added' | 'modified' | 'removed' | 'base'
-
-export interface DeltaView {
-  added: Set<string>
-  modified: Set<string>
-  removedIds: Set<string>
-  removedGhosts: SkillDef[]
 }
 
 export function GraphPreview({

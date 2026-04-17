@@ -3,6 +3,7 @@ import { ATHLETE_BY_ID, getInitials } from '../data/athletes'
 import { skillsForSport, type SkillDef } from '../data/graph'
 import type { TodayTask } from '../data/student'
 import { formatDueRelative } from '../lib/fire'
+import { deltaViewFromGraphs } from '../lib/graphDelta'
 import { useFrontierStore } from '../store/useFrontierStore'
 import { DiagnosticRunner } from './DiagnosticRunner'
 import { RoleToggle } from './RoleToggle'
@@ -23,10 +24,13 @@ export function StudentDetailView({ athleteId, onBack, onFineTune }: StudentDeta
   const athleteSkillProgress = useFrontierStore((s) => s.athleteSkillProgress)
   const athleteDiagnostic = useFrontierStore((s) => s.athleteDiagnostic)
   const athleteReonboardStatus = useFrontierStore((s) => s.athleteReonboardStatus)
+  const athleteGraphDraftDeltas = useFrontierStore((s) => s.athleteGraphDraftDeltas)
+  const sportPlans = useFrontierStore((s) => s.sportPlans)
   const getDashboardTasks = useFrontierStore((s) => s.getDashboardTasks)
   const overrideMastery = useFrontierStore((s) => s.overrideMastery)
   const clearDiagnostic = useFrontierStore((s) => s.clearDiagnostic)
   const confirmReonboard = useFrontierStore((s) => s.confirmReonboard)
+  const acceptAthleteDraft = useFrontierStore((s) => s.acceptAthleteDraft)
 
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null)
   const [diagnosticOpen, setDiagnosticOpen] = useState(false)
@@ -38,12 +42,19 @@ export function StudentDetailView({ athleteId, onBack, onFineTune }: StudentDeta
     return skillsForSport(athlete.sport)
   }, [resolvedGraph, athlete])
 
+  const teamPlanGraph = athlete ? sportPlans[athlete.sport] ?? null : null
+  const deltaView = useMemo(
+    () => (teamPlanGraph && resolvedGraph ? deltaViewFromGraphs(teamPlanGraph.graph, resolvedGraph) : null),
+    [teamPlanGraph, resolvedGraph],
+  )
+
   const mastered = athleteMastery[athleteId] ?? new Set<string>()
   const conditional = athleteConditional[athleteId] ?? {}
   const reviewState = athleteReviewState[athleteId] ?? {}
   const skillProgress = athleteSkillProgress[athleteId] ?? {}
   const diagnostic = athleteDiagnostic[athleteId]
   const reonboardStatus = athleteReonboardStatus[athleteId]
+  const draftDelta = athleteGraphDraftDeltas[athleteId] ?? null
   const dashboardTasks = useMemo(
     () => getDashboardTasks(athleteId),
     [getDashboardTasks, athleteId, diagnostic, mastered],
@@ -128,12 +139,30 @@ export function StudentDetailView({ athleteId, onBack, onFineTune }: StudentDeta
                 AI re-onboarded
               </span>
             )}
+            {draftDelta && (
+              <span
+                className="shrink-0 border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-sky-300"
+                title="A fine-tuned plan is drafted but not yet accepted into the training menu."
+              >
+                Pending fine-tune
+              </span>
+            )}
           </div>
           <p className="truncate text-[11px] text-slate-500">
             {athlete.position} · {athlete.schoolYear} · {masteredSkills.length}/{skills.length} mastered
           </p>
         </div>
         <div className="hidden items-center gap-2 sm:flex">
+          {draftDelta && (
+            <button
+              type="button"
+              onClick={() => acceptAthleteDraft(athleteId)}
+              title="Push the pending fine-tune draft to this athlete's training menu"
+              className="shrink-0 border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-sky-300 transition hover:border-sky-500/70 hover:bg-sky-500/20 hover:text-sky-200"
+            >
+              Accept fine-tune
+            </button>
+          )}
           <button
             type="button"
             onClick={handleRerunDiagnostic}
@@ -167,6 +196,7 @@ export function StudentDetailView({ athleteId, onBack, onFineTune }: StudentDeta
             onSelectNode={setSelectedSkill}
             skillDefs={skills}
             athleteId={athleteId}
+            deltaView={deltaView}
           />
         </div>
 

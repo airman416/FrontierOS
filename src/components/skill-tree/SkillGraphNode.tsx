@@ -1,5 +1,6 @@
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import { memo, useMemo } from 'react'
+import type { Divergence } from '../../lib/graphDelta'
 import { computeSkillVisualState, computeVisualRole, useFrontierStore, type VisualRole } from '../../store/useFrontierStore'
 import { useSkillGraphScope } from './SkillGraphScopeContext'
 
@@ -9,6 +10,14 @@ export interface SkillFlowNodeData extends Record<string, unknown> {
   athleteId?: string
   /** Optional explicit progress override for preview-only surfaces. */
   progress?: number
+  /** Optional divergence vs the team baseline (added/tuned/removed highlight). */
+  divergence?: Divergence
+}
+
+const DIVERGENCE_BADGE: Record<Exclude<Divergence, 'base'>, { label: string; classes: string }> = {
+  added: { label: 'Added', classes: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' },
+  modified: { label: 'Tuned', classes: 'bg-amber-500/15 text-amber-300 border-amber-500/40' },
+  removed: { label: 'Removed', classes: 'bg-rose-500/15 text-rose-300 border-rose-500/40' },
 }
 
 type SkillFlowNode = Node<SkillFlowNodeData, 'skill'>
@@ -72,6 +81,9 @@ export const SkillGraphNode = memo(function SkillGraphNode({ id, selected, data 
   const isConditional = role === 'conditional'
   const isDueReview = role === 'dueReview'
   const isFrontier = role === 'frontier'
+  const divergence: Divergence = data?.divergence ?? 'base'
+  const isRemoved = divergence === 'removed'
+  const divergenceBadge = divergence !== 'base' ? DIVERGENCE_BADGE[divergence] : null
 
   const progressPct = isFrontier
     ? Math.max(0, Math.min(100, explicitProgress ?? scopedProgress ?? 0))
@@ -90,9 +102,16 @@ export const SkillGraphNode = memo(function SkillGraphNode({ id, selected, data 
 
   if (!def) return null
 
-  const borderClass = isConditional
-    ? 'border-emerald-500/60 border-dashed'
-    : 'border-[#2e3348]'
+  const borderClass =
+    divergence === 'added'
+      ? 'border-emerald-500/70'
+      : divergence === 'modified'
+        ? 'border-amber-500/70'
+        : divergence === 'removed'
+          ? 'border-rose-500/50 border-dashed'
+          : isConditional
+            ? 'border-emerald-500/60 border-dashed'
+            : 'border-[#2e3348]'
 
   return (
     <>
@@ -100,7 +119,7 @@ export const SkillGraphNode = memo(function SkillGraphNode({ id, selected, data 
       <div
         className={`relative flex h-[58px] w-[178px] overflow-hidden border shadow-lg shadow-black/30 ${
           selected ? 'ring-2 ring-alpha ring-offset-1 ring-offset-[#0a0b10]' : ''
-        } ${borderClass} ${fill[role]}`}
+        } ${borderClass} ${fill[role]} ${isRemoved ? 'opacity-40' : ''}`}
       >
         <div className={`w-1.5 shrink-0 ${strip[role]}`} aria-hidden />
         <div className="flex min-w-0 flex-1 flex-col justify-center px-2.5 py-1">
@@ -121,7 +140,13 @@ export const SkillGraphNode = memo(function SkillGraphNode({ id, selected, data 
               />
             )}
           </div>
-          <p className="line-clamp-2 text-left text-[11px] font-semibold leading-tight text-slate-200">{def.label}</p>
+          <p
+            className={`line-clamp-2 text-left text-[11px] font-semibold leading-tight text-slate-200 ${
+              isRemoved ? 'line-through' : ''
+            }`}
+          >
+            {def.label}
+          </p>
         </div>
         {isFrontier && progressPct > 0 && (
           <div
@@ -129,6 +154,13 @@ export const SkillGraphNode = memo(function SkillGraphNode({ id, selected, data 
             style={{ width: `${progressPct}%` }}
             aria-hidden
           />
+        )}
+        {divergenceBadge && (
+          <span
+            className={`pointer-events-none absolute right-1 top-1 border px-1 py-px text-[8px] font-bold uppercase tracking-wider ${divergenceBadge.classes}`}
+          >
+            {divergenceBadge.label}
+          </span>
         )}
       </div>
       <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-2 !border-slate-600 !bg-slate-900" />

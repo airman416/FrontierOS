@@ -56,9 +56,9 @@ Any sport, any philosophy. A coach types what they want — *"High-school softba
 
 After the first generation, coaches can keep iterating in a chat panel next to a live graph preview. *"Add a mental game lane,"* *"merge these two nodes,"* *"simplify the strength branch"* — the graph updates in place.
 
-> **Screenshot needed:** `builder-form.png` — the initial "Generate Team Plan" form with requirements textarea and sport chips.
->
-> **Screenshot needed:** `builder-graph.png` — the Builder view after generation, showing the chat panel on the left and the generated skill graph on the right.
+![Builder form](images/builder-form.png)
+
+![Builder graph](images/builder-graph.png)
 
 ### Team plan, then per-athlete fine-tunes
 
@@ -69,7 +69,7 @@ There are two layers:
 
 Only the differences are stored per athlete, and the UI highlights them: added nodes glow, modified nodes get an amber border, and removed nodes appear as ghosts so the coach can see exactly how this athlete's plan diverges from the team's.
 
-> **Screenshot needed:** `fine-tune.png` — an athlete's fine-tuned graph with the "N diverges" badge in the header and visibly highlighted added/removed/modified nodes.
+![Athlete fine-tune](images/fine-tune.png)
 
 ### Onboarding diagnostic
 
@@ -83,7 +83,7 @@ Everything else is inferred:
 
 A typical athlete is fully onboarded in a few dozen probes instead of hundreds. When one athlete is done, the UI offers to chain straight into the next un-onboarded athlete on the roster.
 
-> **Screenshot needed:** `diagnostic.png` — the diagnostic modal showing the current probe prompt, skill name, and the Pass / Partial / Fail buttons with progress counter.
+![Diagnostic runner](images/diagnostic.png)
 
 ### Re-onboarding when the plan changes
 
@@ -93,7 +93,7 @@ When a coach regenerates the team plan, previously-onboarded athletes don't have
 
 Clicking an athlete opens their own page: today's tasks, their personalized skill tree scoped to their fine-tuned graph, spaced-repetition reviews that are due or coming up, and manual override buttons if the coach wants to flip a mastery state by hand. It's the single screen a coach uses during a session with one athlete.
 
-> **Screenshot needed:** `student-detail.png` — an athlete's detail page showing today's tasks on the left and the scoped skill tree on the right.
+![Student detail](images/student-detail.png)
 
 ---
 

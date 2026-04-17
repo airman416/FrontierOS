@@ -1,6 +1,40 @@
 import type { SkillDef } from '../data/graph'
 import type { GeneratedGraph, GraphDelta, SportPlan } from './graphSchema'
 
+export type Divergence = 'added' | 'modified' | 'removed' | 'base'
+
+export interface DeltaView {
+  added: Set<string>
+  modified: Set<string>
+  removedIds: Set<string>
+  removedGhosts: SkillDef[]
+}
+
+export function deltaViewFromGraphs(
+  baseGraph: GeneratedGraph | null | undefined,
+  nextGraph: GeneratedGraph | null | undefined,
+): DeltaView | null {
+  if (!baseGraph || !nextGraph) return null
+  const { added, removed, modified } = diffSkills(baseGraph.skills, nextGraph.skills)
+  const presentIds = new Set(nextGraph.skills.map((s) => s.id))
+  const baseById = new Map(baseGraph.skills.map((s) => [s.id, s]))
+  const removedGhosts: SkillDef[] = []
+  for (const id of removed) {
+    const g = baseById.get(id)
+    if (!g) continue
+    removedGhosts.push({
+      ...g,
+      prereqs: g.prereqs.filter((p) => presentIds.has(p)),
+    })
+  }
+  return {
+    added: new Set(added.map((s) => s.id)),
+    modified: new Set(Object.keys(modified)),
+    removedIds: new Set(removed),
+    removedGhosts,
+  }
+}
+
 export function emptyDelta(): GraphDelta {
   return { added: [], removed: [], modified: {} }
 }

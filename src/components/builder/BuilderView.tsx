@@ -7,6 +7,7 @@ import type {
   ChatMessage,
   GenerateMode,
   GeneratedGraph,
+  GraphDelta,
   SportPlan,
 } from '../../lib/graphSchema'
 import { computeDelta, deltaViewFromDelta, hasDeltaChanges } from '../../lib/graphDelta'
@@ -46,45 +47,65 @@ export function BuilderView({
 
   const saveAthleteGraph = useFrontierStore((s) => s.saveAthleteGraph)
   const saveSportPlan = useFrontierStore((s) => s.saveSportPlan)
-  const saveAthleteDelta = useFrontierStore((s) => s.saveAthleteDelta)
+  const saveAthleteDraftDelta = useFrontierStore((s) => s.saveAthleteDraftDelta)
+  const acceptAthleteDraft = useFrontierStore((s) => s.acceptAthleteDraft)
+  const discardAthleteDraft = useFrontierStore((s) => s.discardAthleteDraft)
   const resetAthleteDelta = useFrontierStore((s) => s.resetAthleteDelta)
   const clearSportPlan = useFrontierStore((s) => s.clearSportPlan)
-  const getSportPlan = useFrontierStore((s) => s.getSportPlan)
-  const getAthleteGraph = useFrontierStore((s) => s.getAthleteGraph)
-  const getAthleteDelta = useFrontierStore((s) => s.getAthleteDelta)
   const getResolvedAthleteGraph = useFrontierStore((s) => s.getResolvedAthleteGraph)
+  const getDraftResolvedAthleteGraph = useFrontierStore((s) => s.getDraftResolvedAthleteGraph)
   const athleteMastery = useFrontierStore((s) => s.athleteMastery)
   const athleteReadiness = useFrontierStore((s) => s.athleteReadiness)
   const getAthletesForSport = useFrontierStore((s) => s.getAthletesForSport)
 
+  // Subscribe to the raw maps so the header reactively reflects accept/discard.
+  const sportPlansMap = useFrontierStore((s) => s.sportPlans)
+  const athleteDeltasMap = useFrontierStore((s) => s.athleteGraphDeltas)
+  const athleteDraftDeltasMap = useFrontierStore((s) => s.athleteGraphDraftDeltas)
+  const athleteGraphsMap = useFrontierStore((s) => s.athleteGraphs)
+
   const existingSportPlan: SportPlan | null = useMemo(
-    () => (isSportMode ? getSportPlan(sport) : getSportPlan(sport)),
-    [isSportMode, sport, getSportPlan],
+    () => sportPlansMap[String(sport)] ?? null,
+    [sportPlansMap, sport],
   )
   const existingDelta = useMemo(
-    () => (athleteId ? getAthleteDelta(athleteId) : null),
-    [athleteId, getAthleteDelta],
+    () => (athleteId ? athleteDeltasMap[athleteId] ?? null : null),
+    [athleteId, athleteDeltasMap],
+  )
+  const existingDraft = useMemo(
+    () => (athleteId ? athleteDraftDeltasMap[athleteId] ?? null : null),
+    [athleteId, athleteDraftDeltasMap],
   )
   const legacyAthleteGraph = useMemo(
-    () => (athleteId ? getAthleteGraph(athleteId) : null),
-    [athleteId, getAthleteGraph],
+    () => (athleteId ? athleteGraphsMap[athleteId] ?? null : null),
+    [athleteId, athleteGraphsMap],
   )
-  const resolvedAthleteGraph = useMemo(
-    () => (athleteId ? getResolvedAthleteGraph(athleteId) : null),
-    [athleteId, getResolvedAthleteGraph],
+  const draftResolvedAthleteGraph = useMemo(
+    () => (athleteId ? getDraftResolvedAthleteGraph(athleteId) : null),
+    [
+      athleteId,
+      getDraftResolvedAthleteGraph,
+      // Recompute when any of the underlying maps change.
+      sportPlansMap,
+      athleteDeltasMap,
+      athleteDraftDeltasMap,
+      athleteGraphsMap,
+    ],
   )
 
   const initialGraph: GeneratedGraph | null = isSportMode
     ? existingSportPlan?.graph ?? null
-    : resolvedAthleteGraph
+    : draftResolvedAthleteGraph
+
+  const workingDelta: GraphDelta | null = existingDraft ?? existingDelta ?? null
 
   const initialHistory: ChatMessage[] = isSportMode
     ? existingSportPlan?.history ?? []
-    : existingDelta?.history ?? []
+    : workingDelta?.history ?? []
 
   const initialRequirements: string = isSportMode
     ? existingSportPlan?.requirements ?? ''
-    : existingDelta?.requirements ?? ''
+    : workingDelta?.requirements ?? ''
 
   const [stage, setStage] = useState<Stage>(initialGraph ? 'chat' : 'form')
   const [requirements, setRequirements] = useState(initialRequirements)
@@ -124,6 +145,8 @@ export function BuilderView({
     ? deltaView.added.size + deltaView.modified.size + deltaView.removedIds.size
     : 0
 
+  const hasPendingDraft = !isSportMode && !!existingDraft
+
   const persistResult = useCallback(
     (nextGraph: GeneratedGraph, nextHistory: ChatMessage[], nextRequirements: string) => {
       if (isSportMode) {
@@ -140,11 +163,14 @@ export function BuilderView({
       }
       if (!athleteId) return
       if (baseGraph) {
-        const delta = computeDelta(baseGraph, nextGraph)
+        const delta: GraphDelta = computeDelta(baseGraph, nextGraph)
         delta.requirements = nextRequirements
         delta.history = nextHistory
         delta.baseVersion = existingSportPlan?.version
-        saveAthleteDelta(athleteId, delta)
+        // Athlete fine-tunes land in a draft layer until the coach explicitly
+        // accepts them. Until then, the athlete's training menu continues to
+        // use the previously-accepted delta (or the team baseline).
+        saveAthleteDraftDelta(athleteId, delta)
       } else {
         saveAthleteGraph(athleteId, nextGraph)
       }
@@ -156,7 +182,7 @@ export function BuilderView({
       baseGraph,
       existingSportPlan?.version,
       saveSportPlan,
-      saveAthleteDelta,
+      saveAthleteDraftDelta,
       saveAthleteGraph,
     ],
   )
@@ -270,6 +296,32 @@ export function BuilderView({
     setRequirements('')
   }, [athleteId, baseGraph, resetAthleteDelta, athlete?.firstName])
 
+  const handleAcceptDraft = useCallback(() => {
+    if (!athleteId) return
+    acceptAthleteDraft(athleteId)
+  }, [athleteId, acceptAthleteDraft])
+
+  const handleDiscardDraft = useCallback(() => {
+    if (!athleteId) return
+    const confirmed = window.confirm(
+      `Discard the pending fine-tune draft for ${athlete?.firstName ?? 'this athlete'}? The training menu will stay on the last accepted plan.`,
+    )
+    if (!confirmed) return
+    discardAthleteDraft(athleteId)
+    // Revert the preview back to the last-accepted state for this athlete.
+    const resolved = getResolvedAthleteGraph(athleteId)
+    setCurrentGraph(resolved ?? baseGraph)
+    setMessages(existingDelta?.history ?? [])
+    setRequirements(existingDelta?.requirements ?? '')
+  }, [
+    athleteId,
+    athlete?.firstName,
+    discardAthleteDraft,
+    getResolvedAthleteGraph,
+    baseGraph,
+    existingDelta,
+  ])
+
   const handleScrapTeamPlan = useCallback(() => {
     if (!isSportMode) return
     const athletesAffected = getAthletesForSport(String(sport)).length
@@ -310,7 +362,9 @@ export function BuilderView({
       ? 'Editing the team baseline for every athlete on this sport.'
       : 'Build the team baseline that seeds every athlete on this sport.'
     : baseGraph
-      ? 'Fine-tuning on top of the team plan. Only changes diverge.'
+      ? hasPendingDraft
+        ? 'Fine-tune draft — accept to push it to the training menu.'
+        : 'Fine-tuning on top of the team plan. Only changes diverge.'
       : legacyAthleteGraph
         ? 'Legacy athlete plan — will convert to the team plan layer on next save.'
         : 'Generate a standalone plan for this athlete.'
@@ -423,6 +477,14 @@ export function BuilderView({
                   {divergenceCount} diverge{divergenceCount === 1 ? '' : 's'}
                 </span>
               )}
+              {hasPendingDraft && (
+                <span
+                  className="shrink-0 border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-sky-300"
+                  title="These changes are a draft and haven't been pushed to the athlete's training menu yet."
+                >
+                  Pending accept
+                </span>
+              )}
             </div>
             <p className="truncate text-[11px] text-slate-500">
               {headerSubtitle}
@@ -431,13 +493,35 @@ export function BuilderView({
               )}
             </p>
           </div>
+          {hasPendingDraft && (
+            <>
+              <button
+                type="button"
+                onClick={handleAcceptDraft}
+                title="Push this fine-tuned plan to the athlete's training menu"
+                className="shrink-0 border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300 transition hover:border-emerald-500/70 hover:bg-emerald-500/20 hover:text-emerald-200"
+              >
+                Accept
+              </button>
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                title="Throw away the pending draft and keep the last accepted plan"
+                className="shrink-0 border border-border-subtle bg-surface-raised px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-300 transition hover:border-border-default hover:text-white"
+              >
+                Discard Draft
+              </button>
+            </>
+          )}
           {!isSportMode && baseGraph && (
             <button
               type="button"
               onClick={handleResetToTeamPlan}
-              disabled={!existingDelta || !hasDeltaChanges(existingDelta)}
+              disabled={
+                !hasDeltaChanges(existingDelta) && !hasDeltaChanges(existingDraft)
+              }
               title={
-                existingDelta && hasDeltaChanges(existingDelta)
+                hasDeltaChanges(existingDelta) || hasDeltaChanges(existingDraft)
                   ? 'Revert this athlete to the team plan'
                   : 'Already matches the team plan'
               }
