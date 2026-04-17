@@ -111,6 +111,8 @@ export function BuilderView({
   const [requirements, setRequirements] = useState(initialRequirements)
   const [messages, setMessages] = useState<ChatMessage[]>(initialHistory)
   const [isLoading, setIsLoading] = useState(false)
+  const [streamingReply, setStreamingReply] = useState('')
+  const [streamingStatus, setStreamingStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [currentGraph, setCurrentGraph] = useState<GeneratedGraph | null>(initialGraph)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
@@ -208,19 +210,29 @@ export function BuilderView({
       const newHistory: ChatMessage[] = [...history, { role: 'user', content: userMessage }]
       setMessages(newHistory)
       setIsLoading(true)
+      setStreamingReply('')
+      setStreamingStatus(null)
       setError(null)
 
       try {
         const mode: GenerateMode = isSportMode ? 'sport' : 'athlete'
-        const response = await generateGraph({
-          mode,
-          sport: String(sport),
-          requirements: effectiveRequirements,
-          history: newHistory,
-          currentGraph: currentGraph?.skills,
-          baseGraph: !isSportMode && baseGraph ? baseGraph.skills : undefined,
-          athleteContext: athleteContextForApi,
-        })
+        const response = await generateGraph(
+          {
+            mode,
+            sport: String(sport),
+            requirements: effectiveRequirements,
+            history: newHistory,
+            currentGraph: currentGraph?.skills,
+            baseGraph: !isSportMode && baseGraph ? baseGraph.skills : undefined,
+            athleteContext: athleteContextForApi,
+          },
+          {
+            onPartial: ({ chatReply, graphBuilding }) => {
+              setStreamingReply(chatReply)
+              setStreamingStatus(graphBuilding ? 'Building graph preview…' : null)
+            },
+          },
+        )
 
         const nextHistory: ChatMessage[] = [
           ...newHistory,
@@ -238,6 +250,8 @@ export function BuilderView({
         ])
       } finally {
         setIsLoading(false)
+        setStreamingReply('')
+        setStreamingStatus(null)
       }
     },
     [
@@ -557,6 +571,8 @@ export function BuilderView({
               messages={messages}
               onSend={handleChatSend}
               isLoading={isLoading}
+              streamingText={streamingReply}
+              streamingStatus={streamingStatus}
               placeholder={
                 isSportMode
                   ? 'Iterate on the team plan…'

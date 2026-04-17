@@ -6,11 +6,15 @@ export function ChatPanel({
   messages,
   onSend,
   isLoading,
+  streamingText,
+  streamingStatus,
   placeholder = 'Ask AI to adjust the graph...',
 }: {
   messages: ChatMessage[]
   onSend: (message: string) => void
   isLoading: boolean
+  streamingText?: string
+  streamingStatus?: string | null
   placeholder?: string
 }) {
   const [input, setInput] = useState('')
@@ -19,7 +23,7 @@ export function ChatPanel({
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [messages, isLoading])
+  }, [messages, isLoading, streamingText, streamingStatus])
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -31,6 +35,8 @@ export function ChatPanel({
     },
     [input, isLoading, onSend],
   )
+
+  const showingStream = Boolean(isLoading && streamingText && streamingText.length > 0)
 
   return (
     <div className="flex h-full flex-col">
@@ -58,7 +64,27 @@ export function ChatPanel({
           </div>
         ))}
 
-        {isLoading && (
+        {isLoading && showingStream && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] border border-border-subtle bg-surface-elevated px-3 py-2 text-[13px] leading-relaxed text-slate-300">
+              <div className="prose-builder">
+                <ReactMarkdown>{streamingText ?? ''}</ReactMarkdown>
+              </div>
+              {streamingStatus ? (
+                <p className="mt-2 border-t border-border-subtle pt-2 text-[11px] text-slate-500">
+                  {streamingStatus}
+                </p>
+              ) : (
+                <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500">
+                  <span className="inline-block h-3.5 w-0.5 animate-pulse bg-alpha" aria-hidden />
+                  Writing…
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isLoading && !showingStream && (
           <div className="flex justify-start">
             <div className="border border-border-subtle bg-surface-elevated px-3 py-2">
               <div className="flex items-center gap-1.5">
@@ -66,7 +92,7 @@ export function ChatPanel({
                 <span className="h-1.5 w-1.5 animate-pulse bg-alpha [animation-delay:150ms]" />
                 <span className="h-1.5 w-1.5 animate-pulse bg-alpha [animation-delay:300ms]" />
                 <span className="ml-2 text-[11px] text-slate-500">
-                  Generating graph...
+                  Starting…
                 </span>
               </div>
             </div>

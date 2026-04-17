@@ -1,3 +1,4 @@
+import { parse } from 'partial-json'
 import type { GenerateRequest, GenerateResponse } from './graphSchema'
 
 // Default to the same-origin Netlify redirect (`/api/generate` -> the Netlify
@@ -5,7 +6,48 @@ import type { GenerateRequest, GenerateResponse } from './graphSchema'
 // backend (e.g. the FastAPI service in `backend/` deployed to Fly.io).
 const GENERATE_URL = import.meta.env.VITE_GENERATE_URL || '/api/generate'
 
-export async function generateGraph(req: GenerateRequest): Promise<GenerateResponse> {
+export interface GeneratePartial {
+  /** Best-effort `chatReply` text parsed from the incomplete JSON stream. */
+  chatReply: string
+  /** True once the stream has begun the `graph` field but the document is not yet valid JSON. */
+  graphBuilding: boolean
+}
+
+export interface GenerateGraphOptions {
+  onPartial?: (partial: GeneratePartial) => void
+}
+
+function isCompleteJsonObject(s: string): boolean {
+  try {
+    JSON.parse(s)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Derive streaming UI state from accumulated structured-output tokens. */
+export function partialStateFromContent(content: string): GeneratePartial {
+  let chatReply = ''
+  try {
+    const partial = parse(content) as { chatReply?: unknown }
+    if (typeof partial?.chatReply === 'string') chatReply = partial.chatReply
+  } catch {
+    // Still mid-token or malformed until more chunks arrive.
+  }
+
+  const graphBuilding =
+    content.length > 0 &&
+    !isCompleteJsonObject(content) &&
+    /"graph"\s*:/.test(content)
+
+  return { chatReply, graphBuilding }
+}
+
+export async function generateGraph(
+  req: GenerateRequest,
+  options?: GenerateGraphOptions,
+): Promise<GenerateResponse> {
   const res = await fetch(GENERATE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -21,6 +63,7 @@ export async function generateGraph(req: GenerateRequest): Promise<GenerateRespo
   const decoder = new TextDecoder()
   let content = ''
   let buffer = ''
+  const onPartial = options?.onPartial
 
   while (true) {
     const { done, value } = await reader.read()
@@ -38,7 +81,10 @@ export async function generateGraph(req: GenerateRequest): Promise<GenerateRespo
       try {
         const json = JSON.parse(payload)
         const delta = json.choices?.[0]?.delta?.content
-        if (delta) content += delta
+        if (delta) {
+          content += delta
+          onPartial?.(partialStateFromContent(content))
+        }
       } catch {
         // partial JSON line, skip
       }
