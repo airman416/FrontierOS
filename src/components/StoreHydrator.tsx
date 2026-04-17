@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useFrontierStore } from '../store/useFrontierStore'
-import { migrateLocalStorageIfNeeded } from '../lib/migrateLocalStorage'
+import { ensureBootPrefetchStarted } from '../lib/bootPrefetch'
 
 interface Props {
   children: ReactNode
@@ -8,8 +8,8 @@ interface Props {
 
 /**
  * Blocks the app from rendering until the initial `/api/bootstrap` call
- * resolves. Also runs the one-shot localStorage → Postgres migration before
- * hydration so pre-existing coaches don't lose their demo state.
+ * resolves. Migration + bootstrap prefetch start from `main.tsx` so the
+ * network request can overlap React startup; this effect awaits the same work.
  */
 export function StoreHydrator({ children }: Props) {
   const hydrated = useFrontierStore((s) => s.hydrated)
@@ -20,7 +20,7 @@ export function StoreHydrator({ children }: Props) {
     let cancelled = false
     async function boot() {
       try {
-        await migrateLocalStorageIfNeeded()
+        await ensureBootPrefetchStarted()
         await hydrate()
       } catch (err) {
         if (cancelled) return
@@ -59,12 +59,24 @@ export function StoreHydrator({ children }: Props) {
 
   if (!hydrated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface-base">
-        <div className="text-center">
+      <div className="flex min-h-screen items-center justify-center bg-surface-base px-6">
+        <div className="w-full max-w-sm text-center">
           <p className="text-[10px] font-bold uppercase tracking-widest text-alpha-light">
             Frontier OS
           </p>
-          <p className="mt-2 text-sm text-slate-400">Loading coach state…</p>
+          <p className="mt-3 text-sm font-medium text-slate-200">Syncing your workspace</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Loading roster and training data from the server…
+          </p>
+          <div
+            className="relative mx-auto mt-5 h-1 overflow-hidden rounded-full bg-border-subtle"
+            role="progressbar"
+            aria-label="Loading"
+            aria-busy="true"
+            aria-valuetext="Loading"
+          >
+            <div className="frontier-boot-bar absolute inset-y-0 left-0 w-2/5 rounded-full bg-alpha-light" />
+          </div>
         </div>
       </div>
     )

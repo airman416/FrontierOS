@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { env } from '../env.js'
+import { accessControlAllowOrigin, env } from '../env.js'
 import {
   buildAthleteSystemPrompt,
   buildSportSystemPrompt,
@@ -106,13 +106,24 @@ export async function registerGenerateRoutes(app: FastifyInstance): Promise<void
       return
     }
 
-    reply.raw.writeHead(200, {
+    // `reply.raw.writeHead` bypasses `@fastify/cors` — browsers need these on SSE responses.
+    const reqOrigin =
+      typeof req.headers.origin === 'string' ? req.headers.origin : undefined
+    const allowOrigin = accessControlAllowOrigin(reqOrigin)
+
+    const headers: Record<string, string> = {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
       // Disable proxy buffering (nginx/Cloudflare) so SSE chunks flush live.
       'X-Accel-Buffering': 'no',
-    })
+    }
+    if (allowOrigin !== null) {
+      headers['Access-Control-Allow-Origin'] = allowOrigin
+      headers.Vary = 'Origin'
+    }
+
+    reply.raw.writeHead(200, headers)
 
     const reader = upstream.body.getReader()
     try {

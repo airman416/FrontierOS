@@ -27,6 +27,19 @@ body {
   min-height: 100svh;
 }
 
+@keyframes frontier-boot-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(380%);
+  }
+}
+
+.frontier-boot-bar {
+  animation: frontier-boot-bar 1.35s ease-in-out infinite;
+}
+
 .prose-builder {
   color: #cbd5e1;
   font-size: 13px;

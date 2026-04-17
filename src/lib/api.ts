@@ -99,6 +99,16 @@ export interface LegacyImportPayload {
   }>
 }
 
+let bootstrapInflight: Promise<BootstrapResponse> | null = null
+
+/** Starts GET /bootstrap once; later callers share the same promise (faster cold load). */
+export function prefetchBootstrap(): Promise<BootstrapResponse> {
+  if (!bootstrapInflight) {
+    bootstrapInflight = request<BootstrapResponse>('GET', '/bootstrap')
+  }
+  return bootstrapInflight
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -120,7 +130,7 @@ async function request<T>(
 }
 
 export const api = {
-  bootstrap: () => request<BootstrapResponse>('GET', '/bootstrap'),
+  bootstrap: () => prefetchBootstrap(),
 
   saveSportPlan: (sport: string, plan: Omit<SportPlan, 'sport' | 'updatedAt'>) =>
     request<{

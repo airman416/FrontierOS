@@ -39,3 +39,14 @@ export function parseAllowedOrigins(): string[] | true {
     .map((s) => s.trim())
     .filter(Boolean)
 }
+
+/** Value for `Access-Control-Allow-Origin`, or null if this request must not receive CORS headers. */
+export function accessControlAllowOrigin(requestOrigin: string | undefined): string | null {
+  const allowed = parseAllowedOrigins()
+  if (allowed === true) {
+    return requestOrigin?.trim() || '*'
+  }
+  const o = requestOrigin?.trim()
+  if (!o) return null
+  return allowed.includes(o) ? o : null
+}
