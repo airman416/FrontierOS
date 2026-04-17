@@ -1,23 +1,40 @@
 import type { Sport } from './graph'
 
+export type TaskTechnique =
+  | 'Knowledge graph'
+  | 'Physical frontier'
+  | 'Expert tutor / autoregulation'
+  | 'Objective readiness'
+  | 'Spaced repetition'
+  | 'Interleaving'
+  | 'Testing effect'
+  | 'Non-interference'
+  | 'Automaticity'
+  | 'Encompassings'
+
 export interface TodayTask {
   id: string
   shortLabel: string
   title: string
   detail: string
   sport: 'universal' | Sport
-  technique:
-    | 'Knowledge graph'
-    | 'Physical frontier'
-    | 'Expert tutor / autoregulation'
-    | 'Objective readiness'
-    | 'Spaced repetition'
-    | 'Interleaving'
-    | 'Testing effect'
-    | 'Non-interference'
-    | 'Automaticity'
-    | 'Encompassings'
+  technique: TaskTechnique
+  /**
+   * Primary skill this task advances. Per-skill task pools sum to 100 XP.
+   * Optional on legacy static tasks (they fall back to the generic list).
+   */
+  skillId?: string
+  /**
+   * XP value. 1 XP ≈ 1 minute of fully-focused, fully-productive work for an
+   * average serious student; 5–30 is the typical task range. Per-skill pools
+   * sum to 100 so promoting a skill always requires 100 XP worth of work.
+   */
+  xp?: number
+  /** "Why this task, why now" — shown to the student on the dashboard. */
+  rationale?: string
 }
+
+export type PracticeTask = TodayTask
 
 export const FUTURE_ROADMAP_ITEMS = [
   'Wearable & HRV readiness import',

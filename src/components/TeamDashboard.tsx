@@ -4,7 +4,6 @@ import {
   type Athlete,
 } from '../data/athletes'
 import { SPORT_OPTIONS } from '../data/graph'
-import { hasDeltaChanges } from '../lib/graphDelta'
 import { computeVisualRole, useFrontierStore } from '../store/useFrontierStore'
 import { RoleToggle } from './RoleToggle'
 
@@ -60,71 +59,117 @@ function AvatarCircle({ athlete, size = 40 }: { athlete: Athlete; size?: number 
 
 /* ── Roster Card ── */
 
-type PlanStatus = 'diverges' | 'team' | 'legacy' | 'none'
+type OnboardingState = 'locked' | 'awaiting' | 'onboarded'
+
+interface RosterCardProps {
+  athlete: Athlete
+  state: OnboardingState
+  mastered: number
+  totalSkills: number
+  aiReonboarded: boolean
+  onOnboard: () => void
+  onOpenDetail: () => void
+  dataTour?: string
+}
 
 function RosterCard({
   athlete,
-  planStatus,
-  onClick,
+  state,
+  mastered,
+  totalSkills,
+  aiReonboarded,
+  onOnboard,
+  onOpenDetail,
   dataTour,
-}: {
-  athlete: Athlete
-  planStatus: PlanStatus
-  onClick: () => void
-  dataTour?: string
-}) {
-  const interactive = planStatus !== 'none'
+}: RosterCardProps) {
+  const pct = totalSkills > 0 ? Math.round((mastered / totalSkills) * 100) : 0
 
-  const CardRoot: React.ElementType = interactive ? 'button' : 'div'
-
-  return (
-    <CardRoot
-      type={interactive ? 'button' : undefined}
-      onClick={interactive ? onClick : undefined}
-      data-tour={dataTour}
-      className={`group flex w-full gap-4 border border-border-subtle bg-surface-raised p-4 text-left transition ${
-        interactive
-          ? 'cursor-pointer hover:border-alpha/40 hover:bg-surface-elevated'
-          : 'opacity-70'
-      }`}
-    >
-      <AvatarCircle athlete={athlete} size={48} />
-
-      <div className="min-w-0 flex-1">
-        <p
-          className={`truncate text-sm font-bold text-white ${
-            interactive ? 'group-hover:text-alpha-light' : ''
-          }`}
-        >
-          {athlete.displayName}
-        </p>
-        <p className="mt-0.5 truncate text-xs text-slate-500">
-          {athlete.position} · {athlete.schoolYear} · Age {athlete.age}
-        </p>
-
-        {planStatus === 'diverges' ? (
-          <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-amber-400">
-            <span className="inline-block h-2 w-2 bg-amber-500" />
-            Tuned from Team — View &rarr;
+  if (state === 'locked') {
+    return (
+      <div
+        data-tour={dataTour}
+        className="flex w-full gap-4 border border-border-subtle bg-surface-raised p-4 text-left opacity-70"
+      >
+        <AvatarCircle athlete={athlete} size={48} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold text-white">{athlete.displayName}</p>
+          <p className="mt-0.5 truncate text-xs text-slate-500">
+            {athlete.position} · {athlete.schoolYear} · Age {athlete.age}
           </p>
-        ) : planStatus === 'team' ? (
-          <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-            <span className="inline-block h-2 w-2 bg-emerald-500" />
-            On Team Plan — Finetune &rarr;
-          </p>
-        ) : planStatus === 'legacy' ? (
-          <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-            <span className="inline-block h-2 w-2 bg-emerald-500" />
-            Plan Ready — View &rarr;
-          </p>
-        ) : (
           <p className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
             <span className="inline-block h-2 w-2 bg-slate-600" />
             Awaiting team plan
           </p>
-        )}
+        </div>
       </div>
-    </CardRoot>
+    )
+  }
+
+  if (state === 'awaiting') {
+    return (
+      <div
+        data-tour={dataTour}
+        className="flex w-full flex-col gap-3 border border-alpha/30 bg-gradient-to-br from-alpha/10 to-transparent p-4 text-left"
+      >
+        <div className="flex gap-3">
+          <AvatarCircle athlete={athlete} size={48} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold text-white">{athlete.displayName}</p>
+            <p className="mt-0.5 truncate text-xs text-slate-500">
+              {athlete.position} · {athlete.schoolYear} · Age {athlete.age}
+            </p>
+            <p className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-alpha-light">
+              Step 2 · Onboard to place on graph
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onOnboard}
+          className="mt-1 w-full bg-alpha py-2 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-alpha-light"
+        >
+          Onboard student →
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onOpenDetail}
+      data-tour={dataTour}
+      className="group flex w-full gap-4 border border-border-subtle bg-surface-raised p-4 text-left transition hover:border-alpha/40 hover:bg-surface-elevated"
+    >
+      <div className="relative shrink-0">
+        <AvatarCircle athlete={athlete} size={48} />
+        <span
+          className="absolute -bottom-1 -right-1 border border-border-subtle bg-surface-elevated px-1 py-0.5 text-[9px] font-bold tabular-nums text-emerald-400"
+          title={`${mastered} of ${totalSkills} skills mastered`}
+        >
+          {pct}%
+        </span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="truncate text-sm font-bold text-white group-hover:text-alpha-light">
+            {athlete.displayName}
+          </p>
+          {aiReonboarded && (
+            <span className="shrink-0 border border-amber-500/30 bg-amber-500/10 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider text-amber-300">
+              AI
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 truncate text-xs text-slate-500">
+          {athlete.position} · {athlete.schoolYear} · Age {athlete.age}
+        </p>
+        <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+          <span className="inline-block h-2 w-2 bg-emerald-500" />
+          {mastered}/{totalSkills} skills — View →
+        </p>
+      </div>
+    </button>
   )
 }
 
@@ -132,33 +177,48 @@ function RosterCard({
 
 function RosterGrid({
   sport,
-  onSelectAthlete,
+  onOnboardAthlete,
+  onOpenDetail,
 }: {
   sport: string
-  onSelectAthlete: (id: string) => void
+  onOnboardAthlete: (id: string) => void
+  onOpenDetail: (id: string) => void
 }) {
   const getAthletesForSport = useFrontierStore((s) => s.getAthletesForSport)
   const athleteGraphs = useFrontierStore((s) => s.athleteGraphs)
-  const athleteGraphDeltas = useFrontierStore((s) => s.athleteGraphDeltas)
+  const athleteDiagnostic = useFrontierStore((s) => s.athleteDiagnostic)
+  const athleteMastery = useFrontierStore((s) => s.athleteMastery)
+  const athleteReonboardStatus = useFrontierStore((s) => s.athleteReonboardStatus)
   const sportPlans = useFrontierStore((s) => s.sportPlans)
+  const getResolvedAthleteGraph = useFrontierStore((s) => s.getResolvedAthleteGraph)
   const filtered = getAthletesForSport(sport)
   const hasSportPlan = !!sportPlans[sport]
 
   return (
     <div data-tour="roster-grid" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {filtered.map((a, i) => {
-        const delta = athleteGraphDeltas[a.id]
         const legacy = athleteGraphs[a.id]
-        let planStatus: PlanStatus = 'none'
-        if (delta && hasDeltaChanges(delta)) planStatus = 'diverges'
-        else if (hasSportPlan) planStatus = 'team'
-        else if (legacy) planStatus = 'legacy'
+        const hasAnyPlan = hasSportPlan || !!legacy
+        const diagnostic = athleteDiagnostic[a.id]
+        const reonboard = athleteReonboardStatus[a.id]
+        const state: OnboardingState = !hasAnyPlan
+          ? 'locked'
+          : diagnostic
+            ? 'onboarded'
+            : 'awaiting'
+        const resolved = getResolvedAthleteGraph(a.id)
+        const total = resolved?.skills?.length ?? 0
+        const mastered = (athleteMastery[a.id] ?? new Set<string>()).size
         return (
           <RosterCard
             key={a.id}
             athlete={a}
-            planStatus={planStatus}
-            onClick={() => onSelectAthlete(a.id)}
+            state={state}
+            mastered={mastered}
+            totalSkills={total}
+            aiReonboarded={!!reonboard?.aiReonboarded && !reonboard.confirmed}
+            onOnboard={() => onOnboardAthlete(a.id)}
+            onOpenDetail={() => onOpenDetail(a.id)}
             dataTour={i === 0 ? 'roster-card-first' : undefined}
           />
         )
@@ -496,10 +556,15 @@ function formatRelativeTime(ts: number): string {
 }
 
 export function TeamDashboard({
+  onOnboardAthlete,
+  onOpenDetail,
   onSelectAthlete,
   onGenerateTeamPlan,
   onReplayTour,
 }: {
+  onOnboardAthlete: (id: string) => void
+  onOpenDetail: (id: string) => void
+  /** Heatmap still jumps into BuilderView on athlete click. */
   onSelectAthlete: (id: string) => void
   onGenerateTeamPlan: (sport: string) => void
   onReplayTour: () => void
@@ -509,11 +574,18 @@ export function TeamDashboard({
   const setSelectedSport = useFrontierStore((s) => s.setSelectedSport)
   const getAthletesForSport = useFrontierStore((s) => s.getAthletesForSport)
   const sportPlans = useFrontierStore((s) => s.sportPlans)
-  const filteredCount = getAthletesForSport(selectedSport).length
+  const athleteDiagnostic = useFrontierStore((s) => s.athleteDiagnostic)
+  const athletesOnSport = getAthletesForSport(selectedSport)
+  const filteredCount = athletesOnSport.length
   const currentSportPlan = useMemo(
     () => sportPlans[selectedSport] ?? null,
     [sportPlans, selectedSport],
   )
+  const unOnboardedAthletes = useMemo(
+    () => (currentSportPlan ? athletesOnSport.filter((a) => !athleteDiagnostic[a.id]) : []),
+    [athletesOnSport, currentSportPlan, athleteDiagnostic],
+  )
+  const firstUnOnboardedId = unOnboardedAthletes[0]?.id ?? null
 
   return (
     <div className="min-h-[100dvh] bg-[#0a0b10]">
@@ -537,6 +609,15 @@ export function TeamDashboard({
                   <span className="ml-2 text-slate-600">
                     · Team plan updated {formatRelativeTime(currentSportPlan.updatedAt)}
                   </span>
+                )}
+                {unOnboardedAthletes.length > 0 && firstUnOnboardedId && (
+                  <button
+                    type="button"
+                    onClick={() => onOnboardAthlete(firstUnOnboardedId)}
+                    className="ml-2 border border-alpha/40 bg-alpha/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-alpha-light transition hover:bg-alpha/20"
+                  >
+                    {unOnboardedAthletes.length} un-onboarded · Start →
+                  </button>
                 )}
               </p>
             </div>
@@ -647,7 +728,11 @@ export function TeamDashboard({
               className="mb-4 h-px w-full shrink-0 bg-border-subtle/50"
               aria-hidden
             />
-            <RosterGrid sport={selectedSport} onSelectAthlete={onSelectAthlete} />
+            <RosterGrid
+              sport={selectedSport}
+              onOnboardAthlete={onOnboardAthlete}
+              onOpenDetail={onOpenDetail}
+            />
           </>
         ) : (
           <HeatmapGrid sport={selectedSport} onSelectAthlete={onSelectAthlete} />

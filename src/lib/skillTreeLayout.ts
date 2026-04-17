@@ -31,9 +31,15 @@ function buildLinksFromDefs(defs: SkillDef[]): { source: string; target: string 
   return links
 }
 
+export interface LayoutSkillTreeOptions {
+  /** If set, every skill node gets `data.athleteId` so scoped visuals render. */
+  athleteId?: string
+}
+
 export function layoutSkillTree(
   defs: SkillDef[],
   expandedLevels?: Set<number>,
+  options: LayoutSkillTreeOptions = {},
 ): { nodes: Node[]; edges: Edge[] } {
   const allLevels = new Set(defs.map((s) => s.level))
   const expanded = expandedLevels ?? allLevels
@@ -98,7 +104,7 @@ export function layoutSkillTree(
           id: s.id,
           type: 'skill',
           position: { x: pos.x - SKILL_NODE_W / 2, y: pos.y - SKILL_NODE_H / 2 },
-          data: {},
+          data: options.athleteId ? { athleteId: options.athleteId } : {},
         })
       }
     } else {

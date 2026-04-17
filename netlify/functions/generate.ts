@@ -57,8 +57,9 @@ const graphJsonSchema = {
               prereqs: { type: 'array', items: { type: 'string' } },
               sport: { type: 'string' },
               summary: { type: 'string' },
+              diagnosticPrompt: { type: 'string' },
             },
-            required: ['id', 'label', 'level', 'prereqs', 'sport', 'summary'],
+            required: ['id', 'label', 'level', 'prereqs', 'sport', 'summary', 'diagnosticPrompt'],
             additionalProperties: false,
           },
         },
@@ -104,8 +105,14 @@ const graphJsonSchema = {
                   'Testing effect', 'Non-interference', 'Automaticity', 'Encompassings',
                 ],
               },
+              skillId: { type: 'string' },
+              xp: { type: 'integer', minimum: 1, maximum: 100 },
+              rationale: { type: 'string' },
             },
-            required: ['id', 'shortLabel', 'title', 'detail', 'sport', 'technique'],
+            required: [
+              'id', 'shortLabel', 'title', 'detail', 'sport', 'technique',
+              'skillId', 'xp', 'rationale',
+            ],
             additionalProperties: false,
           },
         },
@@ -142,6 +149,15 @@ function buildSportSystemPrompt(sport: string, requirements: string): string {
 - Higher-level sport nodes depend on lower-level sport nodes AND relevant universal nodes.
 - Node IDs must be kebab-case (e.g., "ball-handling", "sleep-hygiene").
 - Every skill must include a "summary" field: one concise sentence (~15–25 words) describing what the skill involves and why it matters to an athlete's development. Plain language, no coach-speak filler.
+- Every skill must include a "diagnosticPrompt" field, but the rules differ by level:
+  - **Levels 1–4 (foundation + development):** ONE concrete, on-the-spot drill (~10–30 words) the coach can grade pass / partial / fail in **≤60 seconds, right now, during onboarding**. Must require no prior warmup context, no teammates prepped, no sustained bout. Observable, benchmarkable, and bounded.
+    - Good: "3 reps: one-hop throw to a cone 20 ft away — partner counts clean catches (2 of 3)."
+    - Good: "Hold a tall plank for 30s — flag hip drop or lumbar sag."
+    - Good: "5 swings off a tee; 4 of 5 must line-drive to center net."
+    - Bad: "Play a full 7-inning scrimmage." (not on-the-spot, takes hours)
+    - Bad: "Demonstrate consistency under pressure over a match." (not observable in 60s)
+    - Bad: "Show good form on lifts across a week." (not a single observable moment)
+  - **Levels 5–6 (integration / peak game performance):** These integration skills CANNOT be graded in a single on-the-spot task during onboarding — they can only be observed across real competition. For these, set the diagnosticPrompt to an empty string (""). The onboarding engine will infer their status from prerequisite coverage; do not invent a drill.
 
 ### Athlete Generation Rules
 - Generate exactly 10 athletes, ages 14–17, school years from Freshman through Senior.
@@ -150,11 +166,13 @@ function buildSportSystemPrompt(sport: string, requirements: string): string {
 - Spread athletes across development stages: some early (few masteries), some mid-development, some advanced, some near peak.
 - Each athlete needs an id (kebab-case of their name), displayName, firstName, age, position, schoolYear, sport (set to "${sport}"), avatarColor (a valid hex color like "#2563eb"), tagline (one sentence about their development), mastery (array of skill IDs they've mastered), and readiness (0–100 integer).
 
-### Task/Drill Generation Rules
-- Generate 10 tasks mixing universal and sport-specific drills.
-- Each task must use one of these 10 pedagogy techniques exactly: "Knowledge graph", "Physical frontier", "Expert tutor / autoregulation", "Objective readiness", "Spaced repetition", "Interleaving", "Testing effect", "Non-interference", "Automaticity", "Encompassings".
-- Use each technique exactly once across the 10 tasks.
-- Each task needs: id (kebab-case), shortLabel (2–3 words), title (descriptive), detail (one sentence explaining the drill), sport (either "universal" or "${sport}"), technique (one of the 10 above).
+### Task/Drill Generation Rules — per-skill pools
+- Tasks are generated PER SKILL, not as a global list. For EVERY skill in the graph (universal and sport-specific), produce 3–5 tasks whose primary skill is that skill.
+- Each task's skillId must match a skill you produced. Each task advances ONE primary skill.
+- Within each skill's task pool, xp integers MUST sum to exactly 100. A skill is mastered once the athlete has accumulated 100 XP worth of completed tasks on it.
+- **XP-time rule:** 1 XP ≈ 1 minute of fully-focused, fully-productive work for an average serious student. Size xp so the implied duration matches what the task actually takes (a 5-minute drill = 5 XP; a 25-minute situational scrimmage = 25 XP). Tasks should fall in the 5–30 XP range so no single task dominates a session.
+- Tasks are graded across the corpus to cover the 10 pedagogy techniques: "Knowledge graph", "Physical frontier", "Expert tutor / autoregulation", "Objective readiness", "Spaced repetition", "Interleaving", "Testing effect", "Non-interference", "Automaticity", "Encompassings". Use each technique at least once across the full task set; a single skill's pool will typically mix 2–4 techniques.
+- Each task needs: id (kebab-case; include the skillId for uniqueness), shortLabel (2–3 words), title (descriptive), detail (one sentence explaining the drill), sport (either "universal" or "${sport}"), technique (one of the 10 above), skillId (the primary skill this task advances), xp (integer 1–100), rationale (one short sentence: "why this task, why now" — shown to the athlete on their training menu).
 
 ### Skill Short Labels
 - Provide a skillShortLabels object mapping every skill ID to a 1–2 word abbreviation for use in heatmap column headers.

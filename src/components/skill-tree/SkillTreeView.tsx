@@ -8,13 +8,14 @@ import {
   type NodeTypes,
   type NodeMouseHandler,
 } from '@xyflow/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { SkillDef } from '../../data/graph'
 import { layoutSkillTree } from '../../lib/skillTreeLayout'
 import { computeVisualRole, useFrontierStore } from '../../store/useFrontierStore'
 import { LaneNode } from './LaneNode'
 import { LevelGroupNode } from './LevelGroupNode'
 import { SkillGraphNode } from './SkillGraphNode'
+import { SkillGraphScopeContext, type SkillGraphScope } from './SkillGraphScopeContext'
 
 const nodeTypes: NodeTypes = { skill: SkillGraphNode, levelGroup: LevelGroupNode, lane: LaneNode }
 
@@ -38,18 +39,33 @@ export function SkillTreeView({
   selectedId,
   onSelectNode,
   skillDefs,
+  athleteId,
 }: {
   selectedId: string | null
   onSelectNode: (id: string | null) => void
   skillDefs?: SkillDef[]
+  /** When set, the tree renders per-athlete visuals (XP fill, conditional pips, review pulses). */
+  athleteId?: string
 }) {
   const selectedSport = useFrontierStore((s) => s.selectedSport)
   const getSkillsForSport = useFrontierStore((s) => s.getSkillsForSport)
-  const skillById = useFrontierStore((s) => s.skillById)
-  const mastered = useFrontierStore((s) => s.mastered)
-  const readinessScore = useFrontierStore((s) => s.readinessScore)
+  const storeSkillById = useFrontierStore((s) => s.skillById)
+  const athleteMastery = useFrontierStore((s) => s.athleteMastery)
+  const athleteReadiness = useFrontierStore((s) => s.athleteReadiness)
+  const activeMastered = useFrontierStore((s) => s.mastered)
+  const activeReadiness = useFrontierStore((s) => s.readinessScore)
+  const scopedSkillById = useMemo(() => {
+    if (!skillDefs) return null
+    return Object.fromEntries(skillDefs.map((s) => [s.id, s]))
+  }, [skillDefs])
+  const skillById = scopedSkillById ?? storeSkillById
+  const mastered = athleteId
+    ? athleteMastery[athleteId] ?? new Set<string>()
+    : activeMastered
+  const readinessScore = athleteId
+    ? athleteReadiness[athleteId] ?? 100
+    : activeReadiness
 
-  const [expandedLevels, setExpandedLevels] = useState<Set<number>>(new Set())
   const rfRef = useRef<{ fitView: (opts?: { padding?: number; duration?: number }) => void } | null>(null)
 
   const defs = useMemo(
@@ -57,55 +73,24 @@ export function SkillTreeView({
     [skillDefs, getSkillsForSport, selectedSport],
   )
 
-  const allLevels = useMemo(
-    () => [...new Set(defs.map((s) => s.level))].sort((a, b) => a - b),
-    [defs],
-  )
-
-  const toggleLevel = useCallback((level: number) => {
-    setExpandedLevels((prev) => {
-      const next = new Set(prev)
-      if (next.has(level)) next.delete(level)
-      else next.add(level)
-      return next
-    })
-  }, [])
-
-  const allExpanded = allLevels.length > 0 && allLevels.every((l) => expandedLevels.has(l))
-
-  const toggleAll = useCallback(() => {
-    setExpandedLevels(allExpanded ? new Set() : new Set(allLevels))
-  }, [allExpanded, allLevels])
-
-  useEffect(() => {
-    if (!selectedId) return
-    const skill = defs.find((s) => s.id === selectedId)
-    if (skill && !expandedLevels.has(skill.level)) {
-      onSelectNode(null)
-    }
-  }, [expandedLevels, selectedId, defs, onSelectNode])
-
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
-    () => layoutSkillTree(defs, expandedLevels),
-    [defs, expandedLevels],
+    () => layoutSkillTree(defs, undefined, { athleteId }),
+    [defs, athleteId],
   )
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges)
 
   useEffect(() => {
-    const layout = layoutSkillTree(defs, expandedLevels)
+    const layout = layoutSkillTree(defs, undefined, { athleteId })
     setNodes(layout.nodes)
     setEdges(
       layout.edges.map((e) => {
-        if (e.target.startsWith('level-group-')) {
-          return { ...e, animated: false, style: { stroke: '#334155', strokeWidth: 1.5 } }
-        }
         const { stroke, width, animated } = edgeStrokeForTarget(e.target, mastered, readinessScore, skillById)
         return { ...e, animated, style: { stroke, strokeWidth: width } }
       }),
     )
-  }, [defs, expandedLevels, mastered, readinessScore, setNodes, setEdges, skillById])
+  }, [defs, athleteId, mastered, readinessScore, setNodes, setEdges, skillById])
 
   useEffect(() => {
     setNodes((nds) =>
@@ -116,38 +101,26 @@ export function SkillTreeView({
     )
   }, [selectedId, setNodes])
 
-  useEffect(() => {
-    if (rfRef.current) {
-      requestAnimationFrame(() => rfRef.current?.fitView({ padding: 0.15, duration: 280 }))
-    }
-  }, [expandedLevels])
-
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
-      if (node.type === 'levelGroup') {
-        toggleLevel((node.data as Record<string, unknown>).level as number)
-        return
-      }
+      if (node.type === 'lane' || node.type === 'levelGroup') return
       onSelectNode(node.id)
     },
-    [onSelectNode, toggleLevel],
+    [onSelectNode],
   )
 
   const onPaneClick = useCallback(() => {
     onSelectNode(null)
   }, [onSelectNode])
 
+  const scope: SkillGraphScope | null = useMemo(
+    () => (scopedSkillById ? { skillById: scopedSkillById } : null),
+    [scopedSkillById],
+  )
+
   return (
     <div className="relative h-full w-full">
-      <div className="absolute left-3 top-3 z-10 flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={toggleAll}
-          className="border border-[#2e3348] bg-[#111218] px-2.5 py-1 text-[11px] font-semibold text-slate-400 shadow-lg transition hover:bg-[#1e2030] hover:text-white"
-        >
-          {allExpanded ? 'Collapse All' : 'Expand All'}
-        </button>
-      </div>
+      <SkillGraphScopeContext.Provider value={scope}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -186,6 +159,7 @@ export function SkillTreeView({
           zoomable
         />
       </ReactFlow>
+      </SkillGraphScopeContext.Provider>
     </div>
   )
 }
