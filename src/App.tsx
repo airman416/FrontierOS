@@ -1,16 +1,14 @@
 import { useCallback, useState } from 'react'
 import { EVENTS, Joyride, STATUS, type EventData } from 'react-joyride'
 import { AthleteHome } from './components/AthleteHome'
-import { SkillTreeScreen } from './components/SkillTreeScreen'
+import { BuilderView } from './components/builder/BuilderView'
 import { TeamDashboard } from './components/TeamDashboard'
-import { ATHLETES } from './data/athletes'
 import {
   getDashboardTourSteps,
-  getTreeTourSteps,
 } from './onboarding/tourSteps'
 import { useFrontierStore } from './store/useFrontierStore'
 
-type View = 'dashboard' | 'skillmap'
+type View = 'dashboard' | 'builder'
 
 const JOYRIDE_OPTIONS = {
   spotlightRadius: 8,
@@ -27,12 +25,13 @@ const JOYRIDE_OPTIONS = {
 
 export default function App() {
   const [view, setView] = useState<View>('dashboard')
-  const [welcomeVisible, setWelcomeVisible] = useState(true)
+  const [welcomeVisible, setWelcomeVisible] = useState(false)
   const [dashboardTourRun, setDashboardTourRun] = useState(false)
-  const [treeTourRun, setTreeTourRun] = useState(false)
   const [isOnboarding, setIsOnboarding] = useState(false)
   const selectAthlete = useFrontierStore((s) => s.selectAthlete)
   const userRole = useFrontierStore((s) => s.userRole)
+  const builderTarget = useFrontierStore((s) => s.builderTarget)
+  const setBuilderTarget = useFrontierStore((s) => s.setBuilderTarget)
 
   /* ── Welcome modal actions ── */
 
@@ -51,45 +50,40 @@ export default function App() {
   const onDashboardTourEvent = useCallback(
     (data: EventData) => {
       if (data.type !== EVENTS.TOUR_END) return
-
       setDashboardTourRun(false)
-
       if (
         isOnboarding &&
         (data.status === STATUS.FINISHED || data.status === STATUS.SKIPPED)
       ) {
-        selectAthlete(ATHLETES[0].id)
-        setView('skillmap')
-        setTimeout(() => setTreeTourRun(true), 500)
+        setIsOnboarding(false)
       }
     },
-    [isOnboarding, selectAthlete],
+    [isOnboarding],
   )
-
-  /* ── Tree tour events ── */
-
-  const onTreeTourEvent = useCallback((data: EventData) => {
-    if (data.type !== EVENTS.TOUR_END) return
-    if (data.status !== STATUS.FINISHED && data.status !== STATUS.SKIPPED)
-      return
-    setTreeTourRun(false)
-    setIsOnboarding(false)
-  }, [])
 
   /* ── Navigation ── */
 
   const handleSelectAthlete = useCallback(
     (id: string) => {
       selectAthlete(id)
-      setView('skillmap')
+      setBuilderTarget({ kind: 'athlete', athleteId: id })
+      setView('builder')
     },
-    [selectAthlete],
+    [selectAthlete, setBuilderTarget],
+  )
+
+  const handleGenerateTeamPlan = useCallback(
+    (sport: string) => {
+      setBuilderTarget({ kind: 'sport', sport })
+      setView('builder')
+    },
+    [setBuilderTarget],
   )
 
   const backToDashboard = useCallback(() => {
-    setTreeTourRun(false)
     setView('dashboard')
-  }, [])
+    setBuilderTarget(null)
+  }, [setBuilderTarget])
 
   /* ── Manual replay ── */
 
@@ -97,12 +91,6 @@ export default function App() {
     setIsOnboarding(true)
     setDashboardTourRun(false)
     requestAnimationFrame(() => setDashboardTourRun(true))
-  }, [])
-
-  const replayTreeTour = useCallback(() => {
-    setIsOnboarding(false)
-    setTreeTourRun(false)
-    requestAnimationFrame(() => setTreeTourRun(true))
   }, [])
 
   /* ── Athlete mode ── */
@@ -124,39 +112,26 @@ export default function App() {
           continuous
           scrollToFirstStep
           onEvent={onDashboardTourEvent}
-          locale={{ last: 'Open skill map \u2192' }}
-          options={JOYRIDE_OPTIONS}
-        />
-      )}
-
-      {/* Skill map tour */}
-      {view === 'skillmap' && (
-        <Joyride
-          key="phase-tree"
-          run={treeTourRun}
-          steps={getTreeTourSteps()}
-          continuous
-          scrollToFirstStep
-          onEvent={onTreeTourEvent}
           options={JOYRIDE_OPTIONS}
         />
       )}
 
       {/* Welcome modal */}
-      {welcomeVisible && (
+      {welcomeVisible && view === 'dashboard' && (
         <WelcomeModal onStartTour={startTour} onSkip={skipWelcome} />
       )}
 
       {/* Views */}
-      {view === 'dashboard' ? (
+      {view === 'dashboard' || !builderTarget ? (
         <TeamDashboard
           onSelectAthlete={handleSelectAthlete}
+          onGenerateTeamPlan={handleGenerateTeamPlan}
           onReplayTour={replayDashboardTour}
         />
       ) : (
-        <SkillTreeScreen
+        <BuilderView
+          target={builderTarget}
           onBack={backToDashboard}
-          onReplayTour={replayTreeTour}
         />
       )}
     </>

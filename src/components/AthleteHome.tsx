@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ATHLETES, ATHLETE_BY_ID, getInitials } from '../data/athletes'
-import { skillsForSport } from '../data/graph'
+import { skillsForSport, type SkillDef } from '../data/graph'
 import { TECHNIQUE_SWATCH, tasksForSport } from '../data/student'
 import { computeVisualRole, useFrontierStore } from '../store/useFrontierStore'
 import { RoleToggle } from './RoleToggle'
@@ -56,17 +56,37 @@ export function AthleteHome() {
   const selectAthlete = useFrontierStore((s) => s.selectAthlete)
   const mastered = useFrontierStore((s) => s.mastered)
   const readinessScore = useFrontierStore((s) => s.readinessScore)
+  const getResolvedAthleteGraph = useFrontierStore((s) => s.getResolvedAthleteGraph)
 
   const athlete = ATHLETE_BY_ID[selectedAthleteId]
+  const resolvedGraph = useMemo(
+    () => getResolvedAthleteGraph(selectedAthleteId),
+    [getResolvedAthleteGraph, selectedAthleteId],
+  )
+
+  const sportSkills: SkillDef[] = useMemo(() => {
+    if (resolvedGraph?.skills && resolvedGraph.skills.length > 0) {
+      return resolvedGraph.skills
+    }
+    if (!athlete) return []
+    return skillsForSport(athlete.sport)
+  }, [resolvedGraph, athlete])
+
+  const resolvedSkillById = useMemo(
+    () => Object.fromEntries(sportSkills.map((s) => [s.id, s])),
+    [sportSkills],
+  )
+
   if (!athlete) return null
 
-  const sportSkills = skillsForSport(athlete.sport)
   const masteredSkills = sportSkills.filter((s) => mastered.has(s.id))
   const masteredCount = masteredSkills.length
   const totalSkills = sportSkills.length
 
   const frontierSkills = sportSkills
-    .filter((s) => computeVisualRole(s.id, mastered, readinessScore) === 'frontier')
+    .filter(
+      (s) => computeVisualRole(s.id, mastered, readinessScore, resolvedSkillById) === 'frontier',
+    )
     .slice(0, 3)
 
   const maxMasteredLevel = masteredSkills.length > 0

@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
-import { ATHLETE_BY_ID, getInitials } from '../data/athletes'
-import { SKILL_BY_ID, readinessBand } from '../data/graph'
-import { FUTURE_ROADMAP_ITEMS, TECHNIQUE_SWATCH, tasksForSport } from '../data/student'
+import { getInitials } from '../data/athletes'
+import { readinessBand } from '../data/graph'
+import { FUTURE_ROADMAP_ITEMS, TECHNIQUE_SWATCH } from '../data/student'
 import { statusBlurb, statusHeadline } from '../lib/skillStatusCopy'
 import {
   computeVisualRole,
@@ -38,18 +38,22 @@ export function SkillTreeScreen({
   const readinessScore = useFrontierStore((s) => s.readinessScore)
   const mastered = useFrontierStore((s) => s.mastered)
   const toggleMaster = useFrontierStore((s) => s.toggleMaster)
+  const skillById = useFrontierStore((s) => s.skillById)
+  const sportData = useFrontierStore((s) => s.sportData)
+  const selectedSport = useFrontierStore((s) => s.selectedSport)
+  const getTasksForSport = useFrontierStore((s) => s.getTasksForSport)
 
-  const athlete = ATHLETE_BY_ID[selectedAthleteId]
-  const tasks = athlete ? tasksForSport(athlete.sport) : []
+  const athlete = sportData.athletes.find((a) => a.id === selectedAthleteId)
+  const tasks = getTasksForSport(selectedSport)
 
   const onMarkDone = useCallback(() => {
     if (selectedId) toggleMaster(selectedId)
   }, [selectedId, toggleMaster])
 
-  const selectedDef = selectedId ? SKILL_BY_ID[selectedId] : null
-  const selectedRole = selectedId ? computeVisualRole(selectedId, mastered, readinessScore) : null
+  const selectedDef = selectedId ? skillById[selectedId] : null
+  const selectedRole = selectedId ? computeVisualRole(selectedId, mastered, readinessScore, skillById) : null
   const canMark =
-    selectedId && isClickableFrontier(selectedId, mastered, readinessScore)
+    selectedId && isClickableFrontier(selectedId, mastered, readinessScore, skillById)
 
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#0a0b10]">
@@ -158,7 +162,7 @@ export function SkillTreeScreen({
                             key={pid}
                             className="border border-border-subtle bg-surface-elevated px-1.5 py-0.5 text-[10px] font-medium text-slate-400"
                           >
-                            {SKILL_BY_ID[pid].label}
+                            {skillById[pid]?.label ?? pid}
                           </span>
                         ))}
                       </div>

@@ -1,6 +1,5 @@
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import { memo, useMemo } from 'react'
-import { SKILL_BY_ID } from '../../data/graph'
 import { computeVisualRole, useFrontierStore } from '../../store/useFrontierStore'
 
 type SkillFlowNode = Node<Record<string, never>, 'skill'>
@@ -22,10 +21,12 @@ const fill: Record<string, string> = {
 export const SkillGraphNode = memo(function SkillGraphNode({ id, selected }: NodeProps<SkillFlowNode>) {
   const mastered = useFrontierStore((s) => s.mastered)
   const readinessScore = useFrontierStore((s) => s.readinessScore)
-  const role = computeVisualRole(id, mastered, readinessScore)
-  const def = SKILL_BY_ID[id]
+  const skillById = useFrontierStore((s) => s.skillById)
+  const role = computeVisualRole(id, mastered, readinessScore, skillById)
+  const def = skillById[id]
 
   const levelDots = useMemo(() => {
+    if (!def) return null
     return Array.from({ length: 6 }, (_, i) => (
       <span
         key={i}
@@ -33,7 +34,9 @@ export const SkillGraphNode = memo(function SkillGraphNode({ id, selected }: Nod
         aria-hidden
       />
     ))
-  }, [def.level])
+  }, [def])
+
+  if (!def) return null
 
   return (
     <>
