@@ -1,7 +1,12 @@
 import type { GenerateRequest, GenerateResponse } from './graphSchema'
 
+// Default to the same-origin Netlify redirect (`/api/generate` -> the Netlify
+// function). Override via `VITE_GENERATE_URL` to point at a standalone
+// backend (e.g. the FastAPI service in `backend/` deployed to Fly.io).
+const GENERATE_URL = import.meta.env.VITE_GENERATE_URL || '/api/generate'
+
 export async function generateGraph(req: GenerateRequest): Promise<GenerateResponse> {
-  const res = await fetch('/api/generate', {
+  const res = await fetch(GENERATE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
