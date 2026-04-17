@@ -2,10 +2,14 @@
   command = "npm run build"
   publish = "dist"
 
+# Proxy every /api/* request to the Node/Fastify backend hosted on Fly.io.
+# Override BACKEND_API_ORIGIN in the Netlify UI (Build → Environment) when
+# pointing at staging or preview deployments.
 [[redirects]]
-  from = "/api/generate"
-  to = "/.netlify/functions/generate"
+  from = "/api/*"
+  to = "https://frontieros-api.fly.dev/api/:splat"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/*"

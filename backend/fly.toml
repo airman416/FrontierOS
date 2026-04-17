@@ -1,4 +1,4 @@
-# Fly.io configuration for the FrontierOS generate API.
+# Fly.io configuration for the FrontierOS Node backend.
 # Rename `app` below to whatever you picked during `fly launch`.
 
 app = "frontieros-api"
@@ -8,7 +8,8 @@ primary_region = "sjc"
 
 [env]
   PORT = "8080"
-  # Optional overrides — defaults live in app/main.py
+  NODE_ENV = "production"
+  # Optional overrides — defaults live in src/env.ts
   # OPENROUTER_MODEL = "google/gemini-2.5-flash"
   # HTTP_REFERER = "https://frontier-os.netlify.app"
   # ALLOWED_ORIGINS = "https://frontier-os.netlify.app,http://localhost:5173"
@@ -23,8 +24,8 @@ primary_region = "sjc"
 
   [http_service.concurrency]
     type = "requests"
-    hard_limit = 25
-    soft_limit = 20
+    hard_limit = 50
+    soft_limit = 40
 
   [[http_service.checks]]
     interval = "30s"

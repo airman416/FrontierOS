@@ -1,22 +1,9 @@
-import type { Context } from '@netlify/functions'
+/**
+ * System prompt builders. Ported from `netlify/functions/generate.ts` so the
+ * Node backend produces identical graphs to the existing Netlify function.
+ */
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
-
-interface ChatMessage {
-  role: 'user' | 'assistant'
-  content: string
-}
-
-interface SkillDef {
-  id: string
-  label: string
-  level: number
-  prereqs: string[]
-  sport: string
-  summary: string
-}
-
-interface AthleteContext {
+export interface AthleteContext {
   name: string
   firstName?: string
   position?: string
@@ -27,109 +14,7 @@ interface AthleteContext {
   readiness?: number
 }
 
-type GenerateMode = 'sport' | 'athlete'
-
-interface RequestBody {
-  mode?: GenerateMode
-  sport: string
-  requirements: string
-  history: ChatMessage[]
-  currentGraph?: SkillDef[]
-  baseGraph?: SkillDef[]
-  athleteContext?: AthleteContext
-}
-
-const graphJsonSchema = {
-  type: 'object',
-  properties: {
-    chatReply: { type: 'string' },
-    graph: {
-      type: 'object',
-      properties: {
-        skills: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string' },
-              label: { type: 'string' },
-              level: { type: 'integer', minimum: 1, maximum: 6 },
-              prereqs: { type: 'array', items: { type: 'string' } },
-              sport: { type: 'string' },
-              summary: { type: 'string' },
-              diagnosticPrompt: { type: 'string' },
-            },
-            required: ['id', 'label', 'level', 'prereqs', 'sport', 'summary', 'diagnosticPrompt'],
-            additionalProperties: false,
-          },
-        },
-        athletes: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string' },
-              displayName: { type: 'string' },
-              firstName: { type: 'string' },
-              age: { type: 'integer', minimum: 14, maximum: 17 },
-              position: { type: 'string' },
-              schoolYear: { type: 'string' },
-              sport: { type: 'string' },
-              avatarColor: { type: 'string' },
-              tagline: { type: 'string' },
-              mastery: { type: 'array', items: { type: 'string' } },
-              readiness: { type: 'integer', minimum: 0, maximum: 100 },
-            },
-            required: [
-              'id', 'displayName', 'firstName', 'age', 'position',
-              'schoolYear', 'sport', 'avatarColor', 'tagline', 'mastery', 'readiness',
-            ],
-            additionalProperties: false,
-          },
-        },
-        tasks: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string' },
-              shortLabel: { type: 'string' },
-              title: { type: 'string' },
-              detail: { type: 'string' },
-              sport: { type: 'string' },
-              technique: {
-                type: 'string',
-                enum: [
-                  'Knowledge graph', 'Physical frontier', 'Expert tutor / autoregulation',
-                  'Objective readiness', 'Spaced repetition', 'Interleaving',
-                  'Testing effect', 'Non-interference', 'Automaticity', 'Encompassings',
-                ],
-              },
-              skillId: { type: 'string' },
-              xp: { type: 'integer', minimum: 1, maximum: 100 },
-              rationale: { type: 'string' },
-            },
-            required: [
-              'id', 'shortLabel', 'title', 'detail', 'sport', 'technique',
-              'skillId', 'xp', 'rationale',
-            ],
-            additionalProperties: false,
-          },
-        },
-        skillShortLabels: {
-          type: 'object',
-          additionalProperties: { type: 'string' },
-        },
-      },
-      required: ['skills', 'athletes', 'tasks', 'skillShortLabels'],
-      additionalProperties: false,
-    },
-  },
-  required: ['chatReply', 'graph'],
-  additionalProperties: false,
-}
-
-function buildSportSystemPrompt(sport: string, requirements: string): string {
+export function buildSportSystemPrompt(sport: string, requirements: string): string {
   return `You are an expert athletic development coach and knowledge-graph architect. Your job is to generate a complete team-wide knowledge graph (skill tree) for ${sport}, along with athletes and training tasks. This is the TEAM BASELINE that applies to every athlete on the ${sport} program.
 
 ## Graph Construction Framework
@@ -189,7 +74,7 @@ Return a JSON object with:
 - graph: The complete graph object with skills, athletes, tasks, and skillShortLabels.`
 }
 
-function buildAthleteSystemPrompt(
+export function buildAthleteSystemPrompt(
   sport: string,
   requirements: string,
   athleteContext: AthleteContext | undefined,
@@ -235,103 +120,4 @@ When the user iterates, preserve all unchanged portions. Explain in your chatRep
 Return a JSON object with:
 - chatReply: A short 1–2 sentence summary of what diverges from the team baseline for ${name}. DO NOT include bullet lists or long explanations. Keep it under ~40 words.
 - graph: The full resolved graph object (skills + athletes + tasks + skillShortLabels).`
-}
-
-export default async function handler(req: Request, _context: Context) {
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 })
-  }
-
-  const apiKey = Netlify.env.get('OPENROUTER_API_KEY')
-  if (!apiKey) {
-    return new Response('OPENROUTER_API_KEY not configured', { status: 500 })
-  }
-
-  let body: RequestBody
-  try {
-    body = await req.json()
-  } catch {
-    return new Response('Invalid JSON body', { status: 400 })
-  }
-
-  const { sport, requirements, history, currentGraph, baseGraph, athleteContext } = body
-  const mode: GenerateMode = body.mode ?? 'sport'
-  if (!sport) {
-    return new Response('Missing sport field', { status: 400 })
-  }
-
-  const systemPrompt =
-    mode === 'athlete'
-      ? buildAthleteSystemPrompt(sport, requirements, athleteContext)
-      : buildSportSystemPrompt(sport, requirements)
-
-  const messages: { role: string; content: string }[] = [
-    { role: 'system', content: systemPrompt },
-  ]
-
-  for (const msg of history) {
-    messages.push({ role: msg.role, content: msg.content })
-  }
-
-  const contextParts: string[] = []
-  if (mode === 'athlete' && baseGraph && baseGraph.length > 0) {
-    contextParts.push(`[Team baseline graph: ${JSON.stringify(baseGraph)}]`)
-  }
-  if (currentGraph && currentGraph.length > 0) {
-    const label = mode === 'athlete' ? 'Current athlete graph' : 'Current graph state for reference'
-    contextParts.push(`[${label}: ${JSON.stringify(currentGraph)}]`)
-  }
-  if (contextParts.length > 0) {
-    const lastUserIdx = messages.length - 1
-    if (lastUserIdx >= 0 && messages[lastUserIdx].role === 'user') {
-      messages[lastUserIdx].content += `\n\n${contextParts.join('\n\n')}`
-    }
-  }
-
-  try {
-    const response = await fetch(OPENROUTER_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://frontier-os.netlify.app',
-        'X-Title': 'Frontier OS',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages,
-        stream: true,
-        response_format: {
-          type: 'json_schema',
-          json_schema: {
-            name: 'graph_generation',
-            strict: true,
-            schema: graphJsonSchema,
-          },
-        },
-        provider: {
-          require_parameters: true,
-        },
-      }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      return new Response(`OpenRouter error: ${errorText}`, {
-        status: response.status,
-      })
-    }
-
-    return new Response(response.body, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    return new Response(`Generation error: ${message}`, { status: 500 })
-  }
 }

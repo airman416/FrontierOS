@@ -1,0 +1,31 @@
+{
+  "name": "frontieros-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FrontierOS Node/TypeScript API: OpenRouter proxy + Postgres (Drizzle) persistence",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.36.4",
+    "fastify": "^5.1.0",
+    "postgres": "^3.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "drizzle-kit": "^0.28.1",
+    "tsx": "^4.19.2",
+    "typescript": "~5.9.3"
+  }
+}

@@ -111,34 +111,65 @@ The end-to-end coach flow, start to finish:
 
 ## Architecture at a glance
 
-A single-page React app with a tiny serverless backend for AI calls.
+A single-page React app backed by a Node/Fastify API that owns both AI generation and persistence.
 
-- **Frontend** — Vite + React + TypeScript + Tailwind. All the interactive graph rendering is React Flow with a dagre layout.
-- **State** — one Zustand store (`useFrontierStore`) holds the team plan, each athlete's delta, diagnostic results, mastery, conditional states, review schedules, and dashboard tasks. It's the single source of truth for every screen.
-- **AI calls** — a Netlify Function (`netlify/functions/generate.ts`) proxies to OpenRouter with a strict JSON schema so the model always returns a well-formed graph. The same endpoint handles both "generate team plan" and "generate athlete fine-tune" via a `mode` flag. A mirror FastAPI service in `backend/` (Dockerized, deployed to Fly.io) exposes the same `POST /api/generate` for longer generations that exceed Netlify's function timeout; the frontend picks which backend to hit via `VITE_GENERATE_URL`, defaulting to the Netlify function.
-- **Delta storage** — per-athlete graphs are stored as a *diff* against the team baseline (`added` / `removed` / `modified`), not as a full copy. One team plan edit propagates to everyone automatically, and each athlete's divergences stay put.
+- **Frontend** — Vite + React + TypeScript + Tailwind. All the interactive graph rendering is React Flow with a dagre layout. The root is wrapped in a `StoreHydrator` that blocks first paint until `GET /api/bootstrap` resolves.
+- **State** — one Zustand store (`useFrontierStore`) holds the team plan, each athlete's delta, diagnostic results, mastery, conditional states, review schedules, and dashboard tasks. Mutations apply optimistic updates in-memory and fire-and-forget the matching API request; persistence lives in Postgres.
+- **Backend** — Node.js + Fastify + TypeScript in `backend/`, deployed to Fly.io. It exposes a single surface for the frontend:
+  - `POST /api/generate` — streams graph generation through OpenRouter (replaces the old Netlify Function).
+  - `GET /api/bootstrap` — one call that returns the coach's full world (athletes, sport plans, deltas, drafts, training state).
+  - `PUT/DELETE /api/sport-plans/:sport` — team plan writes, including server-side re-onboarding of every athlete when the plan changes.
+  - `PUT/DELETE/POST /api/athletes/:id/...` — per-athlete delta, draft delta, accept-draft, legacy full-graph, state patches, and resets.
+  - `POST /api/import-legacy` — one-shot endpoint that migrates an existing `localStorage` snapshot into Postgres.
+- **Database** — Supabase Postgres accessed through Drizzle ORM (`postgres-js` driver). Schema lives in `backend/src/db/schema.ts`. Every table carries a `coach_id` so the single-tenant demo can grow into multi-coach/auth later.
+- **Delta storage** — per-athlete graphs are stored as a *diff* against the team baseline (`added` / `removed` / `modified`) in `athlete_graph_deltas`. One team plan edit propagates to everyone automatically, and each athlete's divergences stay put.
 - **Diagnostic engine** — a small pure-TS module (`lib/diagnostic.ts`) that picks the next skill to probe, applies verdicts, propagates them up and down the prerequisite graph, and infers the rest.
 - **Spaced repetition** — a stability/due-date tracker (`lib/fire.ts`) schedules reviews for mastered skills; the dashboard surfaces what's due today.
 
-## Stack
+## Tech stack
 
-Vite, React, TypeScript, Tailwind CSS, Zustand, React Flow, dagre, Netlify Functions, FastAPI on Fly.io, OpenRouter.
+| Layer | Technologies |
+| --- | --- |
+| **Frontend** | [Vite](https://vite.dev/), [React](https://react.dev/), TypeScript, [Tailwind CSS](https://tailwindcss.com/), [Zustand](https://github.com/pmndrs/zustand), [React Flow](https://reactflow.dev/), [dagre](https://github.com/dagrejs/dagre) |
+| **Backend** | [Node.js](https://nodejs.org/), [Fastify](https://fastify.dev/), TypeScript, [Zod](https://zod.dev/) (request validation) |
+| **Data** | [PostgreSQL](https://www.postgresql.org/) on [Supabase](https://supabase.com/), [Drizzle ORM](https://orm.drizzle.team/) with the [`postgres`](https://github.com/porsager/postgres) driver |
+| **AI** | [OpenRouter](https://openrouter.ai/) (chat completions + structured graph output), SSE streaming from the backend |
+
+## Deployment
+
+Production is split across three services:
+
+| Platform | Role |
+| --- | --- |
+| **[Netlify](https://www.netlify.com/)** | Hosts the static Vite build (`dist/`). `netlify.toml` redirects `/api/*` to the Fly.io API so the browser keeps calling same-origin `/api/...` and never needs a separate `VITE_API_URL` for normal deploys. |
+| **[Fly.io](https://fly.io/)** | Runs the Node/Fastify server (`backend/`), image built from the repo `Dockerfile`. Exposes `GET /healthz` at the app root (not under `/api`). Graph generation and all REST endpoints live under `/api/...`. |
+| **[Supabase](https://supabase.com/)** | Managed Postgres. Use the **connection pooler** URLs in env (`DATABASE_URL` for the app; session pooler for migrations — see `backend/README.md`). On the free tier, direct `db.<ref>.supabase.co` is often IPv6-only; the pooler is the reliable path from IPv4 networks and from Fly. |
+
+Optional env override: set `VITE_API_URL` only if you want the browser to talk to a Fly (or staging) backend directly instead of going through Netlify’s `/api/*` redirect.
 
 ## Run locally
 
 ```bash
+# 1. Start the API (needs DATABASE_URL + OPENROUTER_API_KEY in backend/.env)
+cd backend
 npm install
-npm run dev
+npm run db:push   # first time only — creates tables in Supabase
+npm run db:seed   # seeds the default coach + demo athletes
+npm run dev       # http://localhost:8080
 ```
 
 ```bash
-npm run build && npm run preview
+# 2. Start the frontend (in a second shell, from the repo root)
+npm install
+npm run dev       # http://localhost:5173
 ```
 
-The AI builder needs an `OPENROUTER_API_KEY` in your Netlify env (or a local `.env`) to actually hit the model; without it the app still runs but graph generation will error.
+Vite's dev server proxies `/api/*` to the backend (`VITE_BACKEND_URL`, defaults to `http://localhost:8080`). Copy `.env.example` to `.env` if you need to override that. In production, Netlify's `netlify.toml` redirect fronts the Fly.io backend at the same `/api/*` path so no extra env is required in the browser bundle.
 
-To run the FastAPI backend instead (longer timeouts for big graphs), see `backend/README.md` for the Docker/Fly.io deploy, then point the frontend at it:
+### Migrating an existing browser state
 
-```bash
-VITE_GENERATE_URL=https://<your-app>.fly.dev/api/generate
-```
+If you already have a demo state saved in `localStorage`, the first load after this upgrade will quietly POST it to `/api/import-legacy` and clear the keys. Nothing to do manually — just open the app once while signed in to the backend.
+
+### AI keys
+
+Graph generation needs `OPENROUTER_API_KEY` set on the backend (Fly secret in production, `backend/.env` locally). Without it the app still runs but any "Generate" button will error.

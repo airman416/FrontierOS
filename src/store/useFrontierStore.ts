@@ -16,7 +16,6 @@ import { TODAY_TASKS, type TodayTask } from '../data/student'
 import type { GeneratedGraph, GraphDelta, SportPlan } from '../lib/graphSchema'
 import { resolveAthleteGraph } from '../lib/graphDelta'
 import type { DiagnosticEntry } from '../lib/diagnostic'
-import { seedFromPriorDiagnostic } from '../lib/reonboard'
 import {
   BASE_INTERVAL_MS,
   buildPostreqClosure,
@@ -31,6 +30,7 @@ import {
   type ConditionalState,
   type ReviewSkillState,
 } from '../lib/fire'
+import { api, type ApiTrainingState } from '../lib/api'
 
 export type BuilderTarget =
   | { kind: 'sport'; sport: Sport | string }
@@ -68,143 +68,7 @@ export interface ReonboardStatus {
   confirmed?: boolean
 }
 
-const STORAGE_KEY = 'frontier-athlete-graphs'
-const SPORT_PLANS_KEY = 'frontier-sport-plans'
-const ATHLETE_DELTAS_KEY = 'frontier-athlete-deltas'
-const ATHLETE_DRAFT_DELTAS_KEY = 'frontier-athlete-draft-deltas'
-const MASTERY_KEY = 'frontier-athlete-mastery'
-const READINESS_KEY = 'frontier-athlete-readiness'
-const SKILL_PROGRESS_KEY = 'frontier-athlete-skill-progress'
-const COMPLETED_TASKS_KEY = 'frontier-athlete-completed-tasks'
-const CONDITIONAL_KEY = 'frontier-athlete-conditional'
-const REVIEW_STATE_KEY = 'frontier-athlete-review-state'
-const DIAGNOSTIC_KEY = 'frontier-athlete-diagnostic'
-const DASHBOARD_KEY = 'frontier-athlete-dashboard'
-const REONBOARD_STATUS_KEY = 'frontier-athlete-reonboard-status'
-
-function safeLoad<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return fallback
-    return JSON.parse(raw) as T
-  } catch {
-    return fallback
-  }
-}
-
-function safeSave(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch { /* quota exceeded */ }
-}
-
-function loadGraphsFromStorage(): Record<string, GeneratedGraph> {
-  return safeLoad(STORAGE_KEY, {} as Record<string, GeneratedGraph>)
-}
-function saveGraphsToStorage(graphs: Record<string, GeneratedGraph>) {
-  safeSave(STORAGE_KEY, graphs)
-}
-function loadSportPlansFromStorage(): Record<string, SportPlan> {
-  return safeLoad(SPORT_PLANS_KEY, {} as Record<string, SportPlan>)
-}
-function saveSportPlansToStorage(plans: Record<string, SportPlan>) {
-  safeSave(SPORT_PLANS_KEY, plans)
-}
-function loadAthleteDeltasFromStorage(): Record<string, GraphDelta> {
-  return safeLoad(ATHLETE_DELTAS_KEY, {} as Record<string, GraphDelta>)
-}
-function saveAthleteDeltasToStorage(deltas: Record<string, GraphDelta>) {
-  safeSave(ATHLETE_DELTAS_KEY, deltas)
-}
-function loadAthleteDraftDeltasFromStorage(): Record<string, GraphDelta> {
-  return safeLoad(ATHLETE_DRAFT_DELTAS_KEY, {} as Record<string, GraphDelta>)
-}
-function saveAthleteDraftDeltasToStorage(drafts: Record<string, GraphDelta>) {
-  safeSave(ATHLETE_DRAFT_DELTAS_KEY, drafts)
-}
-
-function saveMasteryToStorage(mastery: Record<string, Set<string>>) {
-  const serializable: Record<string, string[]> = {}
-  for (const [id, set] of Object.entries(mastery)) serializable[id] = [...set]
-  safeSave(MASTERY_KEY, serializable)
-}
-
-function loadMasteryFromStorage(): Record<string, Set<string>> | null {
-  try {
-    const raw = localStorage.getItem(MASTERY_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Record<string, string[]>
-    const result: Record<string, Set<string>> = {}
-    for (const [id, arr] of Object.entries(parsed)) result[id] = new Set(arr)
-    return result
-  } catch {
-    return null
-  }
-}
-
-function saveReadinessToStorage(readiness: Record<string, number>) {
-  safeSave(READINESS_KEY, readiness)
-}
-function loadReadinessFromStorage(): Record<string, number> | null {
-  return safeLoad<Record<string, number> | null>(READINESS_KEY, null)
-}
-
-function loadSkillProgress(): Record<string, Record<string, number>> {
-  return safeLoad(SKILL_PROGRESS_KEY, {} as Record<string, Record<string, number>>)
-}
-function saveSkillProgress(v: Record<string, Record<string, number>>) {
-  safeSave(SKILL_PROGRESS_KEY, v)
-}
-
-function loadCompletedTasks(): Record<string, Set<string>> {
-  const raw = safeLoad<Record<string, string[]>>(COMPLETED_TASKS_KEY, {})
-  const out: Record<string, Set<string>> = {}
-  for (const [k, v] of Object.entries(raw)) out[k] = new Set(v)
-  return out
-}
-function saveCompletedTasks(v: Record<string, Set<string>>) {
-  const serializable: Record<string, string[]> = {}
-  for (const [k, set] of Object.entries(v)) serializable[k] = [...set]
-  safeSave(COMPLETED_TASKS_KEY, serializable)
-}
-
-function loadConditional(): Record<string, Record<string, ConditionalState>> {
-  return safeLoad(CONDITIONAL_KEY, {} as Record<string, Record<string, ConditionalState>>)
-}
-function saveConditional(v: Record<string, Record<string, ConditionalState>>) {
-  safeSave(CONDITIONAL_KEY, v)
-}
-
-function loadReviewState(): Record<string, Record<string, ReviewSkillState>> {
-  return safeLoad(REVIEW_STATE_KEY, {} as Record<string, Record<string, ReviewSkillState>>)
-}
-function saveReviewState(v: Record<string, Record<string, ReviewSkillState>>) {
-  safeSave(REVIEW_STATE_KEY, v)
-}
-
-function loadDiagnostic(): Record<string, DiagnosticRecord> {
-  return safeLoad(DIAGNOSTIC_KEY, {} as Record<string, DiagnosticRecord>)
-}
-function saveDiagnostic(v: Record<string, DiagnosticRecord>) {
-  safeSave(DIAGNOSTIC_KEY, v)
-}
-
-function loadDashboard(): Record<string, DashboardState> {
-  return safeLoad(DASHBOARD_KEY, {} as Record<string, DashboardState>)
-}
-function saveDashboard(v: Record<string, DashboardState>) {
-  safeSave(DASHBOARD_KEY, v)
-}
-
-function loadReonboardStatus(): Record<string, ReonboardStatus> {
-  return safeLoad(REONBOARD_STATUS_KEY, {} as Record<string, ReonboardStatus>)
-}
-function saveReonboardStatus(v: Record<string, ReonboardStatus>) {
-  safeSave(REONBOARD_STATUS_KEY, v)
-}
-
 const DEFAULT_SKILL_SHORT: Record<string, string> = {
-  // Universal
   'sleep-hygiene': 'Sleep',
   'joint-mobility': 'Mobility',
   'aerobic-base': 'Aerobic',
@@ -214,7 +78,6 @@ const DEFAULT_SKILL_SHORT: Record<string, string> = {
   'heavy-resistance': 'Resistance',
   plyometrics: 'Plyo',
   'game-day-fueling': 'Fueling',
-  // Baseball
   'batting-tee-work': 'Tee Work',
   'basic-fielding': 'Fielding',
   'defensive-positioning': 'Defense',
@@ -222,7 +85,6 @@ const DEFAULT_SKILL_SHORT: Record<string, string> = {
   'advanced-fielding': 'Adv Fielding',
   'situational-hitting': 'Sit Hitting',
   'peak-game-baseball': 'Peak',
-  // Basketball
   'ball-handling': 'Handles',
   'shooting-form': 'Shooting',
   'defensive-stance': 'Def Stance',
@@ -232,7 +94,6 @@ const DEFAULT_SKILL_SHORT: Record<string, string> = {
   'pick-and-roll': 'PnR',
   'three-point-shooting': '3PT',
   'peak-game-basketball': 'Peak',
-  // Soccer
   'first-touch': '1st Touch',
   'passing-accuracy': 'Passing',
   'defensive-marking': 'Marking',
@@ -242,7 +103,6 @@ const DEFAULT_SKILL_SHORT: Record<string, string> = {
   'finishing': 'Finishing',
   'set-piece-execution': 'Set Pieces',
   'peak-game-soccer': 'Peak',
-  // Swimming
   'freestyle-technique': 'Freestyle',
   'backstroke-technique': 'Backstroke',
   'kick-efficiency': 'Kick',
@@ -252,7 +112,6 @@ const DEFAULT_SKILL_SHORT: Record<string, string> = {
   'race-pacing': 'Pacing',
   'dive-starts': 'Starts',
   'peak-race-swimming': 'Peak',
-  // Tennis
   'forehand-groundstroke': 'Forehand',
   'backhand-groundstroke': 'Backhand',
   'court-movement': 'Movement',
@@ -262,7 +121,6 @@ const DEFAULT_SKILL_SHORT: Record<string, string> = {
   'tactical-patterns': 'Tactics',
   'mental-toughness-tennis': 'Mental',
   'peak-match-tennis': 'Peak',
-  // Wrestling
   'stance-motion': 'Stance',
   'takedown-basics': 'Takedowns',
   'mat-awareness': 'Mat Aware',
@@ -272,7 +130,6 @@ const DEFAULT_SKILL_SHORT: Record<string, string> = {
   'chain-wrestling': 'Chains',
   'counter-offense': 'Counters',
   'peak-match-wrestling': 'Peak',
-  // Volleyball
   'passing-platform': 'Passing',
   'setting-technique': 'Setting',
   'serve-receive': 'Serve Rcv',
@@ -288,13 +145,21 @@ function buildSkillById(skills: SkillDef[]): Record<string, SkillDef> {
   return Object.fromEntries(skills.map((s) => [s.id, s]))
 }
 
-function basePrereqsMet(id: string, mastered: Set<string>, skillById: Record<string, SkillDef>): boolean {
+function basePrereqsMet(
+  id: string,
+  mastered: Set<string>,
+  skillById: Record<string, SkillDef>,
+): boolean {
   const s = skillById[id]
   if (!s) return false
   return s.prereqs.every((p) => mastered.has(p))
 }
 
-function computeBaseLocked(id: string, mastered: Set<string>, skillById: Record<string, SkillDef>): boolean {
+function computeBaseLocked(
+  id: string,
+  mastered: Set<string>,
+  skillById: Record<string, SkillDef>,
+): boolean {
   const s = skillById[id]
   if (!s) return true
   return s.prereqs.some((p) => !mastered.has(p))
@@ -322,9 +187,7 @@ export function computeVisualRole(
   const maxLv = maxFrontierLevel(band)
 
   if (band === 'moderate' && s.level >= 4) {
-    if (isMastered || (!baseLocked && !isMastered)) {
-      return 'highRisk'
-    }
+    if (isMastered || (!baseLocked && !isMastered)) return 'highRisk'
     return 'locked'
   }
 
@@ -367,6 +230,8 @@ export function isClickableFrontier(
 }
 
 interface FrontierState {
+  hydrated: boolean
+
   sportData: SportData
 
   selectedAthleteId: string
@@ -396,10 +261,12 @@ interface FrontierState {
 
   builderTarget: BuilderTarget | null
 
+  hydrate: () => Promise<void>
+
   selectAthlete: (id: string) => void
   setReadinessScore: (n: number) => void
   toggleMaster: (id: string) => void
-  resetDemo: () => void
+  resetDemo: () => Promise<void>
   getVisualRole: (id: string) => VisualRole
   getSkillVisualState: (athleteId: string, skillId: string) => VisualRole
   setUserRole: (role: 'coach' | 'athlete') => void
@@ -476,33 +343,21 @@ function buildInitialReadiness(athletes: Athlete[]): Record<string, number> {
 const defaultSportData = buildDefaultSportData()
 const defaultSkillById = buildSkillById(defaultSportData.skills)
 const DEFAULT_ATHLETE = ATHLETES[0].id
-const initialGraphs = loadGraphsFromStorage()
-const initialSportPlans = loadSportPlansFromStorage()
-const initialAthleteDeltas = loadAthleteDeltasFromStorage()
-const initialAthleteDraftDeltas = loadAthleteDraftDeltasFromStorage()
 
-const storedMastery = loadMasteryFromStorage()
-const storedReadiness = loadReadinessFromStorage()
-const initialMastery = storedMastery ?? buildInitialMastery(ATHLETES)
-const initialReadiness = storedReadiness ?? buildInitialReadiness(ATHLETES)
-
-for (const athlete of ATHLETES) {
-  if (!(athlete.id in initialMastery)) {
-    const init = INITIAL_ATHLETE_MASTERY[athlete.id]
-    initialMastery[athlete.id] = init ? new Set(init) : new Set<string>()
-  }
-  if (!(athlete.id in initialReadiness)) {
-    initialReadiness[athlete.id] = INITIAL_ATHLETE_READINESS[athlete.id] ?? 100
-  }
+/**
+ * Best-effort async write. Errors are logged to the console but not surfaced
+ * to the UI — every mutation is optimistic, so the local state has already
+ * been updated. The store stays consistent with the server after the next
+ * successful bootstrap (on reload).
+ */
+function fireAndForget<T>(promise: Promise<T>, label: string): void {
+  promise.catch((err) => {
+    console.error(`[FrontierOS] ${label} failed`, err)
+  })
 }
 
-const initialSkillProgress = loadSkillProgress()
-const initialCompletedTasks = loadCompletedTasks()
-const initialConditional = loadConditional()
-const initialReviewState = loadReviewState()
-const initialDiagnostic = loadDiagnostic()
-const initialDashboard = loadDashboard()
-const initialReonboardStatus = loadReonboardStatus()
+/** Shape used by `patchAthleteState`. */
+type ApiStatePatch = Parameters<typeof api.patchAthleteState>[1]
 
 /**
  * Pull together the per-athlete graph + task context needed by the FIRe
@@ -516,14 +371,15 @@ function buildCandidateContext(
   const athlete = state.sportData.athletes.find((a) => a.id === athleteId)
   if (!athlete) return null
   const resolved = state.getResolvedAthleteGraph(athleteId)
-  const skills: SkillDef[] = resolved?.skills && resolved.skills.length > 0
-    ? resolved.skills
-    : state.sportData.skills.filter((s) => s.sport === 'universal' || s.sport === athlete.sport)
+  const skills: SkillDef[] =
+    resolved?.skills && resolved.skills.length > 0
+      ? resolved.skills
+      : state.sportData.skills.filter(
+          (s) => s.sport === 'universal' || s.sport === athlete.sport,
+        )
   const skillById = buildSkillById(skills)
-  const allTasks: TodayTask[] = resolved?.tasks && resolved.tasks.length > 0
-    ? resolved.tasks
-    : state.sportData.tasks
-  // Only tasks whose skillId matches a skill in this athlete's graph are FIRe-eligible.
+  const allTasks: TodayTask[] =
+    resolved?.tasks && resolved.tasks.length > 0 ? resolved.tasks : state.sportData.tasks
   const tasks = allTasks.filter((t) => t.skillId && skillById[t.skillId])
   const mastered = state.athleteMastery[athleteId] ?? new Set<string>()
   return {
@@ -541,32 +397,142 @@ function buildCandidateContext(
   }
 }
 
+function trainingStateToSlices(rows: ApiTrainingState[]) {
+  const athleteMastery: Record<string, Set<string>> = {}
+  const athleteReadiness: Record<string, number> = {}
+  const athleteSkillProgress: Record<string, Record<string, number>> = {}
+  const athleteCompletedTasks: Record<string, Set<string>> = {}
+  const athleteConditional: Record<string, Record<string, ConditionalState>> = {}
+  const athleteReviewState: Record<string, Record<string, ReviewSkillState>> = {}
+  const athleteDiagnostic: Record<string, DiagnosticRecord> = {}
+  const athleteDashboard: Record<string, DashboardState> = {}
+  const athleteReonboardStatus: Record<string, ReonboardStatus> = {}
+
+  for (const row of rows) {
+    athleteMastery[row.athleteId] = new Set(row.mastery)
+    athleteReadiness[row.athleteId] = row.readiness
+    athleteSkillProgress[row.athleteId] = row.skillProgress ?? {}
+    athleteCompletedTasks[row.athleteId] = new Set(row.completedTasks ?? [])
+    athleteConditional[row.athleteId] = row.conditional ?? {}
+    athleteReviewState[row.athleteId] = row.reviewState ?? {}
+    if (row.diagnostic) athleteDiagnostic[row.athleteId] = row.diagnostic
+    if (row.dashboard) athleteDashboard[row.athleteId] = row.dashboard
+    if (row.reonboardStatus) athleteReonboardStatus[row.athleteId] = row.reonboardStatus
+  }
+
+  return {
+    athleteMastery,
+    athleteReadiness,
+    athleteSkillProgress,
+    athleteCompletedTasks,
+    athleteConditional,
+    athleteReviewState,
+    athleteDiagnostic,
+    athleteDashboard,
+    athleteReonboardStatus,
+  }
+}
+
 export const useFrontierStore = create<FrontierState>((set, get) => ({
+  hydrated: false,
+
   sportData: defaultSportData,
   skillById: defaultSkillById,
 
   selectedAthleteId: DEFAULT_ATHLETE,
-  athleteMastery: initialMastery,
-  athleteReadiness: initialReadiness,
+  athleteMastery: {},
+  athleteReadiness: {},
 
-  athleteSkillProgress: initialSkillProgress,
-  athleteCompletedTasks: initialCompletedTasks,
-  athleteConditional: initialConditional,
-  athleteReviewState: initialReviewState,
-  athleteDiagnostic: initialDiagnostic,
-  athleteDashboard: initialDashboard,
-  athleteReonboardStatus: initialReonboardStatus,
+  athleteSkillProgress: {},
+  athleteCompletedTasks: {},
+  athleteConditional: {},
+  athleteReviewState: {},
+  athleteDiagnostic: {},
+  athleteDashboard: {},
+  athleteReonboardStatus: {},
 
-  mastered: new Set(initialMastery[DEFAULT_ATHLETE] ?? []),
-  readinessScore: initialReadiness[DEFAULT_ATHLETE] ?? 100,
+  mastered: new Set<string>(),
+  readinessScore: 100,
   userRole: 'coach',
   selectedSport: 'baseball',
 
-  athleteGraphs: initialGraphs,
-  sportPlans: initialSportPlans,
-  athleteGraphDeltas: initialAthleteDeltas,
-  athleteGraphDraftDeltas: initialAthleteDraftDeltas,
+  athleteGraphs: {},
+  sportPlans: {},
+  athleteGraphDeltas: {},
+  athleteGraphDraftDeltas: {},
   builderTarget: null,
+
+  hydrate: async () => {
+    const bootstrap = await api.bootstrap()
+
+    const sportPlans: Record<string, SportPlan> = {}
+    for (const p of bootstrap.sportPlans) {
+      sportPlans[p.sport] = {
+        sport: p.sport,
+        graph: p.graph,
+        version: p.version,
+        requirements: p.requirements,
+        history: (p.history as SportPlan['history']) ?? [],
+        updatedAt: p.updatedAt,
+      }
+    }
+
+    const athleteGraphDeltas: Record<string, GraphDelta> = {}
+    for (const d of bootstrap.athleteDeltas) {
+      athleteGraphDeltas[d.athleteId] = d.delta
+    }
+
+    const athleteGraphDraftDeltas: Record<string, GraphDelta> = {}
+    for (const d of bootstrap.athleteDraftDeltas) {
+      athleteGraphDraftDeltas[d.athleteId] = d.delta
+    }
+
+    const athleteGraphs: Record<string, GeneratedGraph> = {}
+    for (const g of bootstrap.athleteGraphsLegacy) {
+      athleteGraphs[g.athleteId] = g.graph
+    }
+
+    // Seed missing training state from the initial data so every athlete has
+    // something to render.
+    const byId = new Map(bootstrap.athleteTrainingState.map((t) => [t.athleteId, t]))
+    const fallbackMastery = buildInitialMastery(ATHLETES)
+    const fallbackReadiness = buildInitialReadiness(ATHLETES)
+    const hydrated: ApiTrainingState[] = []
+    for (const athlete of ATHLETES) {
+      const existing = byId.get(athlete.id)
+      if (existing) {
+        hydrated.push(existing)
+      } else {
+        hydrated.push({
+          athleteId: athlete.id,
+          mastery: Array.from(fallbackMastery[athlete.id] ?? new Set()),
+          readiness: fallbackReadiness[athlete.id] ?? 100,
+          skillProgress: {},
+          completedTasks: [],
+          conditional: {},
+          reviewState: {},
+          diagnostic: null,
+          dashboard: null,
+          reonboardStatus: null,
+          updatedAt: 0,
+        })
+      }
+    }
+
+    const slices = trainingStateToSlices(hydrated)
+
+    const selected = get().selectedAthleteId
+    set({
+      hydrated: true,
+      sportPlans,
+      athleteGraphDeltas,
+      athleteGraphDraftDeltas,
+      athleteGraphs,
+      ...slices,
+      mastered: new Set(slices.athleteMastery[selected] ?? []),
+      readinessScore: slices.athleteReadiness[selected] ?? 100,
+    })
+  },
 
   selectAthlete: (id) => {
     const { athleteMastery, athleteReadiness, sportData } = get()
@@ -584,7 +550,10 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     const score = Math.max(0, Math.min(100, Math.round(n)))
     const next = { ...athleteReadiness, [selectedAthleteId]: score }
     set({ readinessScore: score, athleteReadiness: next })
-    saveReadinessToStorage(next)
+    fireAndForget(
+      api.patchAthleteState(selectedAthleteId, { readiness: score }),
+      'setReadinessScore',
+    )
   },
 
   toggleMaster: (id) => {
@@ -595,10 +564,13 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     next.add(id)
     const nextMastery = { ...athleteMastery, [selectedAthleteId]: next }
     set({ mastered: next, athleteMastery: nextMastery })
-    saveMasteryToStorage(nextMastery)
+    fireAndForget(
+      api.patchAthleteState(selectedAthleteId, { mastery: [...next] }),
+      'toggleMaster',
+    )
   },
 
-  resetDemo: () => {
+  resetDemo: async () => {
     const { selectedAthleteId } = get()
     const fresh = buildInitialMastery(ATHLETES)
     const freshReadiness = buildInitialReadiness(ATHLETES)
@@ -614,16 +586,15 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       athleteDiagnostic: {},
       athleteDashboard: {},
       athleteReonboardStatus: {},
+      athleteGraphDeltas: {},
+      athleteGraphDraftDeltas: {},
+      athleteGraphs: {},
     })
-    saveMasteryToStorage(fresh)
-    saveReadinessToStorage(freshReadiness)
-    saveSkillProgress({})
-    saveCompletedTasks({})
-    saveConditional({})
-    saveReviewState({})
-    saveDiagnostic({})
-    saveDashboard({})
-    saveReonboardStatus({})
+    try {
+      await api.resetDemo()
+    } catch (err) {
+      console.error('[FrontierOS] resetDemo failed', err)
+    }
   },
 
   getVisualRole: (id) => {
@@ -662,87 +633,105 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
 
   setBuilderTarget: (target) => set({ builderTarget: target }),
 
-  saveAthleteGraph: (athleteId: string, graph: GeneratedGraph) => {
+  saveAthleteGraph: (athleteId, graph) => {
     const { athleteGraphs } = get()
     const next = { ...athleteGraphs, [athleteId]: graph }
     set({ athleteGraphs: next })
-    saveGraphsToStorage(next)
+    fireAndForget(api.saveAthleteLegacyGraph(athleteId, graph), 'saveAthleteGraph')
   },
 
-  getAthleteGraph: (athleteId: string) => {
-    const { athleteGraphs } = get()
-    return athleteGraphs[athleteId] ?? null
+  getAthleteGraph: (athleteId) => {
+    return get().athleteGraphs[athleteId] ?? null
   },
 
   saveSportPlan: (sport, plan) => {
     const state = get()
     const key = String(sport)
-    const prevPlan = state.sportPlans[key] ?? null
     const nextPlans = { ...state.sportPlans, [key]: plan }
     set({ sportPlans: nextPlans })
-    saveSportPlansToStorage(nextPlans)
 
-    // AI re-onboard: port any previously-onboarded athletes on this sport onto
-    // the new graph using their prior diagnostic log. We only do this when
-    // there was a prior plan (i.e. this is a regeneration, not the first save).
-    if (!prevPlan) return
-    const priorSkills = prevPlan.graph?.skills ?? []
-    if (priorSkills.length === 0) return
-    const newSkills = plan.graph?.skills ?? []
-    if (newSkills.length === 0) return
-
-    const affected = state.sportData.athletes
-      .filter((a) => a.sport === key)
-      .map((a) => ({ athlete: a, record: state.athleteDiagnostic[a.id] }))
-      .filter((x): x is { athlete: Athlete; record: DiagnosticRecord } => !!x.record)
-
-    for (const { athlete, record } of affected) {
-      const seed = seedFromPriorDiagnostic({
-        priorSkills,
-        priorLog: record.log,
-        newSkills,
-      })
-      get().seedReonboardedAthlete({
-        athleteId: athlete.id,
-        mastered: seed.mastered,
-        conditional: seed.conditional,
-        rationale: seed.rationale,
-      })
-    }
+    // Server-side re-onboard fan-out: the response carries any updated
+    // athlete training-state rows so we can splice them back into the store.
+    ;(async () => {
+      try {
+        const resp = await api.saveSportPlan(key, {
+          graph: plan.graph,
+          version: plan.version,
+          requirements: plan.requirements,
+          history: plan.history,
+        })
+        if (resp.reonboardedAthletes.length === 0) return
+        const merged = trainingStateToSlices(resp.reonboardedAthletes)
+        const cur = get()
+        const athleteMastery = { ...cur.athleteMastery, ...merged.athleteMastery }
+        const athleteReadiness = { ...cur.athleteReadiness, ...merged.athleteReadiness }
+        const athleteSkillProgress = {
+          ...cur.athleteSkillProgress,
+          ...merged.athleteSkillProgress,
+        }
+        const athleteCompletedTasks = {
+          ...cur.athleteCompletedTasks,
+          ...merged.athleteCompletedTasks,
+        }
+        const athleteConditional = { ...cur.athleteConditional, ...merged.athleteConditional }
+        const athleteReviewState = { ...cur.athleteReviewState, ...merged.athleteReviewState }
+        const athleteDashboard = { ...cur.athleteDashboard }
+        for (const row of resp.reonboardedAthletes) {
+          if (row.dashboard) athleteDashboard[row.athleteId] = row.dashboard
+          else delete athleteDashboard[row.athleteId]
+        }
+        const athleteReonboardStatus = {
+          ...cur.athleteReonboardStatus,
+          ...merged.athleteReonboardStatus,
+        }
+        const selected = cur.selectedAthleteId
+        set({
+          athleteMastery,
+          athleteReadiness,
+          athleteSkillProgress,
+          athleteCompletedTasks,
+          athleteConditional,
+          athleteReviewState,
+          athleteDashboard,
+          athleteReonboardStatus,
+          ...(merged.athleteMastery[selected]
+            ? { mastered: new Set(merged.athleteMastery[selected]) }
+            : {}),
+        })
+      } catch (err) {
+        console.error('[FrontierOS] saveSportPlan failed', err)
+      }
+    })()
   },
 
   getSportPlan: (sport) => {
-    const { sportPlans } = get()
-    return sportPlans[String(sport)] ?? null
+    return get().sportPlans[String(sport)] ?? null
   },
 
   saveAthleteDelta: (athleteId, delta) => {
     const { athleteGraphDeltas, athleteGraphs } = get()
     const next = { ...athleteGraphDeltas, [athleteId]: delta }
     set({ athleteGraphDeltas: next })
-    saveAthleteDeltasToStorage(next)
     if (athleteGraphs[athleteId]) {
       const { [athleteId]: _removed, ...rest } = athleteGraphs
       set({ athleteGraphs: rest })
-      saveGraphsToStorage(rest)
     }
+    fireAndForget(api.saveAthleteDelta(athleteId, delta), 'saveAthleteDelta')
   },
 
   getAthleteDelta: (athleteId) => {
-    const { athleteGraphDeltas } = get()
-    return athleteGraphDeltas[athleteId] ?? null
+    return get().athleteGraphDeltas[athleteId] ?? null
   },
 
   saveAthleteDraftDelta: (athleteId, delta) => {
     const { athleteGraphDraftDeltas } = get()
     const next = { ...athleteGraphDraftDeltas, [athleteId]: delta }
     set({ athleteGraphDraftDeltas: next })
-    saveAthleteDraftDeltasToStorage(next)
+    fireAndForget(api.saveAthleteDraftDelta(athleteId, delta), 'saveAthleteDraftDelta')
   },
 
   getAthleteDraftDelta: (athleteId) => {
-    const { athleteGraphDraftDeltas } = get()
-    return athleteGraphDraftDeltas[athleteId] ?? null
+    return get().athleteGraphDraftDeltas[athleteId] ?? null
   },
 
   acceptAthleteDraft: (athleteId) => {
@@ -751,14 +740,14 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     if (!draft) return
     const nextDeltas = { ...athleteGraphDeltas, [athleteId]: draft }
     const { [athleteId]: _drafted, ...restDrafts } = athleteGraphDraftDeltas
-    set({ athleteGraphDeltas: nextDeltas, athleteGraphDraftDeltas: restDrafts })
-    saveAthleteDeltasToStorage(nextDeltas)
-    saveAthleteDraftDeltasToStorage(restDrafts)
-    if (athleteGraphs[athleteId]) {
-      const { [athleteId]: _legacy, ...restGraphs } = athleteGraphs
-      set({ athleteGraphs: restGraphs })
-      saveGraphsToStorage(restGraphs)
-    }
+    const nextGraphs = { ...athleteGraphs }
+    if (athleteId in nextGraphs) delete nextGraphs[athleteId]
+    set({
+      athleteGraphDeltas: nextDeltas,
+      athleteGraphDraftDeltas: restDrafts,
+      athleteGraphs: nextGraphs,
+    })
+    fireAndForget(api.acceptAthleteDraft(athleteId), 'acceptAthleteDraft')
   },
 
   discardAthleteDraft: (athleteId) => {
@@ -766,24 +755,30 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     if (!(athleteId in athleteGraphDraftDeltas)) return
     const { [athleteId]: _removed, ...rest } = athleteGraphDraftDeltas
     set({ athleteGraphDraftDeltas: rest })
-    saveAthleteDraftDeltasToStorage(rest)
+    fireAndForget(api.deleteAthleteDraftDelta(athleteId), 'discardAthleteDraft')
   },
 
   getResolvedAthleteGraph: (athleteId) => {
     const { sportPlans, athleteGraphDeltas, athleteGraphs, sportData } = get()
     const athlete = sportData.athletes.find((a) => a.id === athleteId)
     const sport = athlete?.sport
-    const plan = sport ? sportPlans[String(sport)] ?? null : null
+    const plan = sport ? (sportPlans[String(sport)] ?? null) : null
     const delta = athleteGraphDeltas[athleteId] ?? null
     const legacy = athleteGraphs[athleteId] ?? null
     return resolveAthleteGraph(plan, delta, legacy)
   },
 
   getDraftResolvedAthleteGraph: (athleteId) => {
-    const { sportPlans, athleteGraphDeltas, athleteGraphDraftDeltas, athleteGraphs, sportData } = get()
+    const {
+      sportPlans,
+      athleteGraphDeltas,
+      athleteGraphDraftDeltas,
+      athleteGraphs,
+      sportData,
+    } = get()
     const athlete = sportData.athletes.find((a) => a.id === athleteId)
     const sport = athlete?.sport
-    const plan = sport ? sportPlans[String(sport)] ?? null : null
+    const plan = sport ? (sportPlans[String(sport)] ?? null) : null
     const draft = athleteGraphDraftDeltas[athleteId] ?? null
     if (draft) {
       return resolveAthleteGraph(plan, draft, athleteGraphs[athleteId] ?? null)
@@ -798,90 +793,71 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     const hasDraft = athleteId in athleteGraphDraftDeltas
     const hasLegacy = athleteId in athleteGraphs
     if (!hasDelta && !hasDraft && !hasLegacy) return
-    if (hasDelta) {
-      const { [athleteId]: _d, ...restDeltas } = athleteGraphDeltas
-      set({ athleteGraphDeltas: restDeltas })
-      saveAthleteDeltasToStorage(restDeltas)
-    }
-    if (hasDraft) {
-      const { [athleteId]: _draft, ...restDrafts } = athleteGraphDraftDeltas
-      set({ athleteGraphDraftDeltas: restDrafts })
-      saveAthleteDraftDeltasToStorage(restDrafts)
-    }
-    if (hasLegacy) {
-      const { [athleteId]: _g, ...restGraphs } = athleteGraphs
-      set({ athleteGraphs: restGraphs })
-      saveGraphsToStorage(restGraphs)
-    }
+    const nextDeltas = { ...athleteGraphDeltas }
+    const nextDrafts = { ...athleteGraphDraftDeltas }
+    const nextGraphs = { ...athleteGraphs }
+    if (hasDelta) delete nextDeltas[athleteId]
+    if (hasDraft) delete nextDrafts[athleteId]
+    if (hasLegacy) delete nextGraphs[athleteId]
+    set({
+      athleteGraphDeltas: nextDeltas,
+      athleteGraphDraftDeltas: nextDrafts,
+      athleteGraphs: nextGraphs,
+    })
+    fireAndForget(api.deleteAthleteDelta(athleteId), 'resetAthleteDelta')
   },
 
   clearSportPlan: (sport) => {
     const key = String(sport)
-    const { sportPlans, athleteGraphDeltas, athleteGraphDraftDeltas, athleteGraphs, sportData } = get()
+    const {
+      sportPlans,
+      athleteGraphDeltas,
+      athleteGraphDraftDeltas,
+      athleteGraphs,
+      sportData,
+    } = get()
     const athleteIdsOnSport = new Set(
       sportData.athletes.filter((a) => a.sport === key).map((a) => a.id),
     )
 
-    if (key in sportPlans) {
-      const { [key]: _plan, ...restPlans } = sportPlans
-      set({ sportPlans: restPlans })
-      saveSportPlansToStorage(restPlans)
-    }
+    const nextPlans = { ...sportPlans }
+    if (key in nextPlans) delete nextPlans[key]
 
     const nextDeltas: Record<string, GraphDelta> = {}
-    let deltasChanged = false
     for (const [aid, delta] of Object.entries(athleteGraphDeltas)) {
-      if (athleteIdsOnSport.has(aid)) {
-        deltasChanged = true
-        continue
-      }
-      nextDeltas[aid] = delta
-    }
-    if (deltasChanged) {
-      set({ athleteGraphDeltas: nextDeltas })
-      saveAthleteDeltasToStorage(nextDeltas)
+      if (!athleteIdsOnSport.has(aid)) nextDeltas[aid] = delta
     }
 
     const nextDrafts: Record<string, GraphDelta> = {}
-    let draftsChanged = false
     for (const [aid, delta] of Object.entries(athleteGraphDraftDeltas)) {
-      if (athleteIdsOnSport.has(aid)) {
-        draftsChanged = true
-        continue
-      }
-      nextDrafts[aid] = delta
-    }
-    if (draftsChanged) {
-      set({ athleteGraphDraftDeltas: nextDrafts })
-      saveAthleteDraftDeltasToStorage(nextDrafts)
+      if (!athleteIdsOnSport.has(aid)) nextDrafts[aid] = delta
     }
 
     const nextGraphs: Record<string, GeneratedGraph> = {}
-    let graphsChanged = false
     for (const [aid, graph] of Object.entries(athleteGraphs)) {
-      if (athleteIdsOnSport.has(aid)) {
-        graphsChanged = true
-        continue
-      }
-      nextGraphs[aid] = graph
+      if (!athleteIdsOnSport.has(aid)) nextGraphs[aid] = graph
     }
-    if (graphsChanged) {
-      set({ athleteGraphs: nextGraphs })
-      saveGraphsToStorage(nextGraphs)
-    }
+
+    set({
+      sportPlans: nextPlans,
+      athleteGraphDeltas: nextDeltas,
+      athleteGraphDraftDeltas: nextDrafts,
+      athleteGraphs: nextGraphs,
+    })
+    fireAndForget(api.clearSportPlan(key), 'clearSportPlan')
   },
 
-  getSkillsForSport: (sport: string) => {
+  getSkillsForSport: (sport) => {
     const { sportData } = get()
     return sportData.skills.filter((s) => s.sport === 'universal' || s.sport === sport)
   },
 
-  getAthletesForSport: (sport: string) => {
+  getAthletesForSport: (sport) => {
     const { sportData } = get()
     return sportData.athletes.filter((a) => a.sport === sport)
   },
 
-  getTasksForSport: (sport: string) => {
+  getTasksForSport: (sport) => {
     const { sportData } = get()
     return sportData.tasks.filter((t) => t.sport === 'universal' || t.sport === sport)
   },
@@ -892,7 +868,6 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     const now = Date.now()
     const state = get()
 
-    // Seed the per-athlete state from the derived status.
     const nextMastered = new Set<string>()
     const nextConditional: Record<string, ConditionalState> = {}
     const nextReviewState: Record<string, ReviewSkillState> = {}
@@ -917,20 +892,26 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     }
 
     const nextAthleteMastery = { ...state.athleteMastery, [athleteId]: nextMastered }
-    const nextAthleteConditional = { ...state.athleteConditional, [athleteId]: nextConditional }
-    const nextAthleteReviewState = { ...state.athleteReviewState, [athleteId]: nextReviewState }
+    const nextAthleteConditional = {
+      ...state.athleteConditional,
+      [athleteId]: nextConditional,
+    }
+    const nextAthleteReviewState = {
+      ...state.athleteReviewState,
+      [athleteId]: nextReviewState,
+    }
     const nextAthleteDiagnostic = {
       ...state.athleteDiagnostic,
       [athleteId]: { completedAt: now, log: entries },
     }
-    // Reset skillProgress + completedTasks on (re)diagnostic — fresh start.
     const nextSkillProgress = { ...state.athleteSkillProgress, [athleteId]: {} }
-    const nextCompletedTasks = { ...state.athleteCompletedTasks, [athleteId]: new Set<string>() }
-    // Clear any prior AI re-onboard pill.
+    const nextCompletedTasks = {
+      ...state.athleteCompletedTasks,
+      [athleteId]: new Set<string>(),
+    }
     const nextReonboardStatus = { ...state.athleteReonboardStatus }
     delete nextReonboardStatus[athleteId]
 
-    // Seed dashboard after state is in place.
     const stagedState: FrontierState = {
       ...state,
       athleteMastery: nextAthleteMastery,
@@ -961,21 +942,28 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       athleteReonboardStatus: nextReonboardStatus,
       ...(isSelected ? { mastered: nextMastered } : {}),
     })
-    saveMasteryToStorage(nextAthleteMastery)
-    saveConditional(nextAthleteConditional)
-    saveReviewState(nextAthleteReviewState)
-    saveDiagnostic(nextAthleteDiagnostic)
-    saveSkillProgress(nextSkillProgress)
-    saveCompletedTasks(nextCompletedTasks)
-    saveDashboard(nextDashboard)
-    saveReonboardStatus(nextReonboardStatus)
+
+    const patch: ApiStatePatch = {
+      mastery: [...nextMastered],
+      conditional: nextConditional,
+      reviewState: nextReviewState,
+      diagnostic: { completedAt: now, log: entries },
+      skillProgress: {},
+      completedTasks: [],
+      dashboard: { taskIds: nextIds, updatedAt: now },
+      reonboardStatus: null,
+    }
+    fireAndForget(api.patchAthleteState(athleteId, patch), 'runDiagnostic')
   },
 
   clearDiagnostic: (athleteId) => {
     const state = get()
     const { [athleteId]: _d, ...rest } = state.athleteDiagnostic
     set({ athleteDiagnostic: rest })
-    saveDiagnostic(rest)
+    fireAndForget(
+      api.patchAthleteState(athleteId, { diagnostic: null }),
+      'clearDiagnostic',
+    )
   },
 
   seedReonboardedAthlete: ({ athleteId, mastered, conditional, rationale }) => {
@@ -1002,13 +990,28 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     }
 
     const nextAthleteMastery = { ...state.athleteMastery, [athleteId]: nextMastered }
-    const nextAthleteConditional = { ...state.athleteConditional, [athleteId]: nextConditional }
-    const nextAthleteReviewState = { ...state.athleteReviewState, [athleteId]: nextReviewState }
+    const nextAthleteConditional = {
+      ...state.athleteConditional,
+      [athleteId]: nextConditional,
+    }
+    const nextAthleteReviewState = {
+      ...state.athleteReviewState,
+      [athleteId]: nextReviewState,
+    }
     const nextSkillProgress = { ...state.athleteSkillProgress, [athleteId]: {} }
-    const nextCompletedTasks = { ...state.athleteCompletedTasks, [athleteId]: new Set<string>() }
+    const nextCompletedTasks = {
+      ...state.athleteCompletedTasks,
+      [athleteId]: new Set<string>(),
+    }
+    const reonboardStatus: ReonboardStatus = {
+      aiReonboarded: true,
+      at: now,
+      rationale,
+      confirmed: false,
+    }
     const nextReonboardStatus = {
       ...state.athleteReonboardStatus,
-      [athleteId]: { aiReonboarded: true, at: now, rationale, confirmed: false },
+      [athleteId]: reonboardStatus,
     }
 
     const stagedState: FrontierState = {
@@ -1038,22 +1041,32 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       athleteDashboard: nextDashboard,
       ...(isSelected ? { mastered: nextMastered } : {}),
     })
-    saveMasteryToStorage(nextAthleteMastery)
-    saveConditional(nextAthleteConditional)
-    saveReviewState(nextAthleteReviewState)
-    saveSkillProgress(nextSkillProgress)
-    saveCompletedTasks(nextCompletedTasks)
-    saveReonboardStatus(nextReonboardStatus)
-    saveDashboard(nextDashboard)
+
+    fireAndForget(
+      api.patchAthleteState(athleteId, {
+        mastery: [...nextMastered],
+        conditional: nextConditional,
+        reviewState: nextReviewState,
+        skillProgress: {},
+        completedTasks: [],
+        reonboardStatus,
+        dashboard: { taskIds: nextIds, updatedAt: now },
+      }),
+      'seedReonboardedAthlete',
+    )
   },
 
   confirmReonboard: (athleteId) => {
     const state = get()
     const cur = state.athleteReonboardStatus[athleteId]
     if (!cur) return
-    const next = { ...state.athleteReonboardStatus, [athleteId]: { ...cur, confirmed: true } }
+    const updated = { ...cur, confirmed: true }
+    const next = { ...state.athleteReonboardStatus, [athleteId]: updated }
     set({ athleteReonboardStatus: next })
-    saveReonboardStatus(next)
+    fireAndForget(
+      api.patchAthleteState(athleteId, { reonboardStatus: updated }),
+      'confirmReonboard',
+    )
   },
 
   completeTask: (athleteId, taskId) => {
@@ -1081,12 +1094,23 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     completedSet.add(taskId)
 
     const nextAthleteMastery = { ...state.athleteMastery, [athleteId]: result.mastered }
-    const nextAthleteSkillProgress = { ...state.athleteSkillProgress, [athleteId]: result.skillProgress }
-    const nextAthleteConditional = { ...state.athleteConditional, [athleteId]: result.conditional }
-    const nextAthleteReviewState = { ...state.athleteReviewState, [athleteId]: result.reviewState }
-    const nextAthleteCompletedTasks = { ...state.athleteCompletedTasks, [athleteId]: completedSet }
+    const nextAthleteSkillProgress = {
+      ...state.athleteSkillProgress,
+      [athleteId]: result.skillProgress,
+    }
+    const nextAthleteConditional = {
+      ...state.athleteConditional,
+      [athleteId]: result.conditional,
+    }
+    const nextAthleteReviewState = {
+      ...state.athleteReviewState,
+      [athleteId]: result.reviewState,
+    }
+    const nextAthleteCompletedTasks = {
+      ...state.athleteCompletedTasks,
+      [athleteId]: completedSet,
+    }
 
-    // Drop the completed task from dashboard and refill.
     const stagedState: FrontierState = {
       ...state,
       athleteMastery: nextAthleteMastery,
@@ -1116,12 +1140,18 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       athleteDashboard: nextDashboard,
       ...(isSelected ? { mastered: result.mastered } : {}),
     })
-    saveMasteryToStorage(nextAthleteMastery)
-    saveSkillProgress(nextAthleteSkillProgress)
-    saveConditional(nextAthleteConditional)
-    saveReviewState(nextAthleteReviewState)
-    saveCompletedTasks(nextAthleteCompletedTasks)
-    saveDashboard(nextDashboard)
+
+    fireAndForget(
+      api.patchAthleteState(athleteId, {
+        mastery: [...result.mastered],
+        skillProgress: result.skillProgress,
+        conditional: result.conditional,
+        reviewState: result.reviewState,
+        completedTasks: [...completedSet],
+        dashboard: { taskIds: nextIds, updatedAt: now },
+      }),
+      'completeTask',
+    )
   },
 
   failTask: (athleteId, taskId) => {
@@ -1141,14 +1171,25 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       now,
     })
 
-    const nextAthleteConditional = { ...state.athleteConditional, [athleteId]: result.conditional }
-    const nextAthleteReviewState = { ...state.athleteReviewState, [athleteId]: result.reviewState }
+    const nextAthleteConditional = {
+      ...state.athleteConditional,
+      [athleteId]: result.conditional,
+    }
+    const nextAthleteReviewState = {
+      ...state.athleteReviewState,
+      [athleteId]: result.reviewState,
+    }
     set({
       athleteConditional: nextAthleteConditional,
       athleteReviewState: nextAthleteReviewState,
     })
-    saveConditional(nextAthleteConditional)
-    saveReviewState(nextAthleteReviewState)
+    fireAndForget(
+      api.patchAthleteState(athleteId, {
+        conditional: result.conditional,
+        reviewState: result.reviewState,
+      }),
+      'failTask',
+    )
   },
 
   getDashboardTasks: (athleteId) => {
@@ -1158,17 +1199,16 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     if (!ctx) return []
     const currentIds = state.athleteDashboard[athleteId]?.taskIds ?? []
     const nextIds = computeDashboardFill(ctx, currentIds, DEFAULT_DASHBOARD_CAP)
-    // Persist if the dashboard content changed.
     const changed =
-      nextIds.length !== currentIds.length ||
-      nextIds.some((id, i) => currentIds[i] !== id)
+      nextIds.length !== currentIds.length || nextIds.some((id, i) => currentIds[i] !== id)
     if (changed) {
-      const nextDashboard = {
-        ...state.athleteDashboard,
-        [athleteId]: { taskIds: nextIds, updatedAt: now },
-      }
+      const dashboard = { taskIds: nextIds, updatedAt: now }
+      const nextDashboard = { ...state.athleteDashboard, [athleteId]: dashboard }
       set({ athleteDashboard: nextDashboard })
-      saveDashboard(nextDashboard)
+      fireAndForget(
+        api.patchAthleteState(athleteId, { dashboard }),
+        'getDashboardTasks.persist',
+      )
     }
     const tasksById = new Map(ctx.tasks.map((t) => [t.id, t]))
     const out: TodayTask[] = []
@@ -1179,18 +1219,10 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     return out
   },
 
-  getAthleteSkillProgress: (athleteId) => {
-    return get().athleteSkillProgress[athleteId] ?? {}
-  },
-  getAthleteReviewState: (athleteId) => {
-    return get().athleteReviewState[athleteId] ?? {}
-  },
-  getAthleteConditional: (athleteId) => {
-    return get().athleteConditional[athleteId] ?? {}
-  },
-  getAthleteDiagnostic: (athleteId) => {
-    return get().athleteDiagnostic[athleteId] ?? null
-  },
+  getAthleteSkillProgress: (athleteId) => get().athleteSkillProgress[athleteId] ?? {},
+  getAthleteReviewState: (athleteId) => get().athleteReviewState[athleteId] ?? {},
+  getAthleteConditional: (athleteId) => get().athleteConditional[athleteId] ?? {},
+  getAthleteDiagnostic: (athleteId) => get().athleteDiagnostic[athleteId] ?? null,
 
   overrideMastery: (athleteId, skillId, masteredNow) => {
     const state = get()
@@ -1203,9 +1235,11 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       athleteMastery: nextMastery,
       ...(isSelected ? { mastered: cur } : {}),
     })
-    saveMasteryToStorage(nextMastery)
+    fireAndForget(
+      api.patchAthleteState(athleteId, { mastery: [...cur] }),
+      'overrideMastery',
+    )
   },
 }))
 
-// Re-export helpers for consumers that previously imported from this module.
 export { isFrontier, dueSkills }
