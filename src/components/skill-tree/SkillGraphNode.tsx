@@ -5,7 +5,7 @@ import { computeSkillVisualState, computeVisualRole, useFrontierStore, type Visu
 import { useSkillGraphScope } from './SkillGraphScopeContext'
 
 export interface SkillFlowNodeData extends Record<string, unknown> {
-  /** Optional per-athlete scope override — switches the node rendering into
+  /** Optional per-athlete scope override - switches the node rendering into
    * student-detail mode (reads conditional/review/progress slices). */
   athleteId?: string
   /** Optional explicit progress override for preview-only surfaces. */

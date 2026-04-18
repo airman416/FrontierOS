@@ -727,6 +727,7 @@ export function TeamDashboard({
   onOpenDetail,
   onSelectAthlete,
   onGenerateTeamPlan,
+  onOpenIntro,
   onReplayTour,
 }: {
   onOnboardAthlete: (id: string) => void
@@ -734,6 +735,7 @@ export function TeamDashboard({
   /** Heatmap still jumps into BuilderView on athlete click. */
   onSelectAthlete: (id: string) => void
   onGenerateTeamPlan: (sport: string) => void
+  onOpenIntro: () => void
   onReplayTour: () => void
 }) {
   const [tab, setTab] = useState<Tab>('roster')
@@ -757,13 +759,10 @@ export function TeamDashboard({
   return (
     <div className="min-h-[100dvh] bg-[#0a0b10]">
       {/* Header */}
-      <header
-        data-tour="dashboard-header"
-        className="border-b border-border-subtle bg-surface px-4 pb-0 pt-5 md:px-6"
-      >
+      <header className="border-b border-border-subtle bg-surface px-4 pb-0 pt-5 md:px-6">
         <div className="mx-auto max-w-6xl">
           <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
+            <div data-tour="dashboard-title-block" className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-widest text-alpha-light">
                 Frontier OS
               </p>
@@ -823,20 +822,32 @@ export function TeamDashboard({
                   {currentSportPlan ? 'Edit Team Plan' : 'Generate Team Plan'}
                 </span>
               </button>
-              <button
-                type="button"
-                onClick={onReplayTour}
-                className="shrink-0 bg-alpha/15 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-alpha-light transition hover:bg-alpha/25"
+              <div
+                data-tour="intro-tour-buttons"
+                className="flex shrink-0 items-center gap-2"
               >
-                Tour
-              </button>
+                <button
+                  type="button"
+                  onClick={onOpenIntro}
+                  className="bg-alpha/15 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-alpha-light transition hover:bg-alpha/25"
+                >
+                  Intro
+                </button>
+                <button
+                  type="button"
+                  onClick={onReplayTour}
+                  className="bg-alpha/15 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-alpha-light transition hover:bg-alpha/25"
+                >
+                  Tour
+                </button>
+              </div>
               <RoleToggle />
             </div>
           </div>
 
           {/* Sport filter + view tabs */}
           <div className="mt-4 flex items-end justify-between gap-4">
-            <div className="flex gap-1">
+            <div data-tour="dashboard-tabs" className="flex gap-1">
               <TabBtn active={tab === 'roster'} onClick={() => setTab('roster')}>
                 Roster
               </TabBtn>
@@ -866,7 +877,10 @@ export function TeamDashboard({
       {/* Content */}
       <div className="mx-auto max-w-6xl px-4 py-5 md:px-6">
         {!currentSportPlan && (
-          <div className="mb-5 flex flex-col items-start gap-3 border border-alpha/40 bg-gradient-to-r from-alpha/15 via-alpha/10 to-transparent p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            data-tour="start-here-banner"
+            className="mb-5 flex flex-col items-start gap-3 border border-alpha/40 bg-gradient-to-r from-alpha/15 via-alpha/10 to-transparent p-5 sm:flex-row sm:items-center sm:justify-between"
+          >
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-widest text-alpha-light">
                 Start here

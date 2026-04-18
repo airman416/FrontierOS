@@ -9,7 +9,7 @@ primary_region = "sjc"
 [env]
   PORT = "8080"
   NODE_ENV = "production"
-  # Optional overrides — defaults live in src/env.ts
+  # Optional overrides - defaults live in src/env.ts
   # OPENROUTER_MODEL = "google/gemini-2.5-flash"
   # HTTP_REFERER = "https://frontier-os.netlify.app"
   # ALLOWED_ORIGINS = "https://frontier-os.netlify.app,http://localhost:5173"

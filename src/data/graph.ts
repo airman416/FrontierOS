@@ -21,7 +21,7 @@ export interface SkillDef {
   sport: 'universal' | Sport
   summary?: string
   /**
-   * Coach-graded diagnostic probe — a concrete pass/fail task the coach can
+   * Coach-graded diagnostic probe - a concrete pass/fail task the coach can
    * run with the athlete in ~30–60s to decide whether this skill is known.
    * Only AI-generated graphs carry this; omitted on the legacy static graph.
    */
@@ -33,7 +33,7 @@ export const SKILL_DEFS: SkillDef[] = [
   { id: 'sleep-hygiene', label: 'Sleep Hygiene', level: 1, prereqs: [], sport: 'universal', diagnosticPrompt: 'Ask 3 quick questions: bedtime, wake time, screens in bed. Pass = 7+ hrs + no screens last hour.' },
   { id: 'joint-mobility', label: 'Joint Mobility', level: 1, prereqs: [], sport: 'universal', diagnosticPrompt: 'Deep bodyweight squat, heels flat, arms overhead. Hold 3s without heel lift or collapse.' },
   { id: 'aerobic-base', label: 'Basic Aerobic Base', level: 1, prereqs: [], sport: 'universal', diagnosticPrompt: '60s line-to-line jog (~100m). Finish breathing through nose, able to talk a full sentence.' },
-  { id: 'core-stability', label: 'Core Stability', level: 2, prereqs: ['joint-mobility'], sport: 'universal', diagnosticPrompt: '45s tall plank — flag hip drop, lumbar sag, or elbow drift as partial/fail.' },
+  { id: 'core-stability', label: 'Core Stability', level: 2, prereqs: ['joint-mobility'], sport: 'universal', diagnosticPrompt: '45s tall plank - flag hip drop, lumbar sag, or elbow drift as partial/fail.' },
   { id: 'anaerobic-capacity', label: 'Anaerobic Capacity', level: 2, prereqs: ['aerobic-base'], sport: 'universal', diagnosticPrompt: '6 × 20yd sprints, 10s rest each. Last rep must stay within 1s of first rep.' },
   { id: 'macro-tracking', label: 'Macronutrient Tracking', level: 2, prereqs: ['sleep-hygiene'], sport: 'universal', diagnosticPrompt: 'Recall yesterday\'s meals. Pass = names 3 meals and can estimate protein source + carb source.' },
   { id: 'heavy-resistance', label: 'Heavy Resistance Training', level: 3, prereqs: ['core-stability'], sport: 'universal', diagnosticPrompt: '3 bodyweight goblet-squat reps with clean depth, neutral spine, knees tracking. Dumbbell optional.' },
@@ -50,7 +50,7 @@ export const SKILL_DEFS: SkillDef[] = [
   { id: 'ball-handling', label: 'Ball Handling', level: 3, prereqs: [], sport: 'basketball', diagnosticPrompt: '20s cone dribble: crossover → between-legs → behind-back. Pass = no fumbles, head up last 5s.' },
   { id: 'shooting-form', label: 'Shooting Form', level: 3, prereqs: [], sport: 'basketball', diagnosticPrompt: '5 free-throws; flag elbow flare, thumb-flick, or double-hand release. Pass = 4 of 5 clean form (not necessarily makes).' },
   { id: 'defensive-stance', label: 'Defensive Stance', level: 3, prereqs: ['core-stability', 'anaerobic-capacity'], sport: 'basketball', diagnosticPrompt: '10s defensive slide across the lane and back; stay low, no crossover of feet.' },
-  { id: 'court-vision', label: 'Court Vision', level: 4, prereqs: ['ball-handling', 'anaerobic-capacity'], sport: 'basketball', diagnosticPrompt: 'Dribble to the elbow with eyes up; coach holds up 1/2 fingers — call it out 3 of 3 times.' },
+  { id: 'court-vision', label: 'Court Vision', level: 4, prereqs: ['ball-handling', 'anaerobic-capacity'], sport: 'basketball', diagnosticPrompt: 'Dribble to the elbow with eyes up; coach holds up 1/2 fingers - call it out 3 of 3 times.' },
   { id: 'mid-range-shooting', label: 'Mid-Range Shooting', level: 4, prereqs: ['shooting-form', 'core-stability'], sport: 'basketball', diagnosticPrompt: '5 catch-and-shoot from the elbow, no dribble; make 3 of 5 with clean form.' },
   { id: 'help-defense', label: 'Help Defense', level: 4, prereqs: ['defensive-stance'], sport: 'basketball', diagnosticPrompt: 'Walk through a help-side rotation on a drive from the wing: show correct position (one-pass-away split line).' },
 
@@ -60,7 +60,7 @@ export const SKILL_DEFS: SkillDef[] = [
   { id: 'defensive-marking', label: 'Defensive Marking', level: 3, prereqs: ['core-stability', 'anaerobic-capacity'], sport: 'soccer', diagnosticPrompt: 'Shadow a walking partner with ball over 10yd; stay goal-side, show correct body shape.' },
   { id: 'dribbling-moves', label: '1v1 Dribbling', level: 4, prereqs: ['first-touch', 'anaerobic-capacity'], sport: 'soccer', diagnosticPrompt: 'Beat a cone with a scissor or step-over, then accelerate 5yd. Execute cleanly on 2 of 3 attempts.' },
   { id: 'crossing-delivery', label: 'Crossing & Delivery', level: 4, prereqs: ['passing-accuracy', 'core-stability'], sport: 'soccer', diagnosticPrompt: '3 crosses from the flag to the 6-yd box; 2 of 3 must land in the box, off the ground.' },
-  { id: 'pressing-shape', label: 'Pressing & Shape', level: 4, prereqs: ['defensive-marking'], sport: 'soccer', diagnosticPrompt: 'Coach describes a 2v2 scenario — athlete shows correct first-defender/second-defender positions.' },
+  { id: 'pressing-shape', label: 'Pressing & Shape', level: 4, prereqs: ['defensive-marking'], sport: 'soccer', diagnosticPrompt: 'Coach describes a 2v2 scenario - athlete shows correct first-defender/second-defender positions.' },
 
   // ── Swimming (Level 3–6) ──
   { id: 'freestyle-technique', label: 'Freestyle Technique', level: 3, prereqs: [], sport: 'swimming', diagnosticPrompt: 'One 25yd freestyle length. Watch for breathing to both sides, high-elbow catch, 2-beat kick.' },
@@ -82,9 +82,9 @@ export const SKILL_DEFS: SkillDef[] = [
   { id: 'stance-motion', label: 'Stance & Motion', level: 3, prereqs: [], sport: 'wrestling', diagnosticPrompt: '15s of staggered stance + level-change motion. Must stay in stance, no standing up, knees don\'t touch mat.' },
   { id: 'takedown-basics', label: 'Takedown Basics', level: 3, prereqs: [], sport: 'wrestling', diagnosticPrompt: 'Shoot a double-leg on a standing partner (cooperative). Penetration step + drive through hips. 2 of 3 clean.' },
   { id: 'mat-awareness', label: 'Mat Awareness', level: 3, prereqs: ['core-stability', 'anaerobic-capacity'], sport: 'wrestling', diagnosticPrompt: 'From bottom referee\'s position, call out where the edge of the mat is without looking. Must be within 2ft.' },
-  { id: 'leg-attacks', label: 'Leg Attacks', level: 4, prereqs: ['stance-motion', 'anaerobic-capacity'], sport: 'wrestling', diagnosticPrompt: 'Single-leg finish drill on cooperative partner — change of level + elevate + finish. 2 of 3 clean finishes.' },
-  { id: 'top-control', label: 'Top Control & Turns', level: 4, prereqs: ['takedown-basics', 'core-stability'], sport: 'wrestling', diagnosticPrompt: '20s on top riding position — hand control, hip pressure; partner cannot stand or cut free.' },
-  { id: 'escape-standup', label: 'Escape & Stand-up', level: 4, prereqs: ['mat-awareness'], sport: 'wrestling', diagnosticPrompt: 'Stand-up escape from bottom referee\'s position — hand control + post leg + separate. 2 of 3 clean.' },
+  { id: 'leg-attacks', label: 'Leg Attacks', level: 4, prereqs: ['stance-motion', 'anaerobic-capacity'], sport: 'wrestling', diagnosticPrompt: 'Single-leg finish drill on cooperative partner - change of level + elevate + finish. 2 of 3 clean finishes.' },
+  { id: 'top-control', label: 'Top Control & Turns', level: 4, prereqs: ['takedown-basics', 'core-stability'], sport: 'wrestling', diagnosticPrompt: '20s on top riding position - hand control, hip pressure; partner cannot stand or cut free.' },
+  { id: 'escape-standup', label: 'Escape & Stand-up', level: 4, prereqs: ['mat-awareness'], sport: 'wrestling', diagnosticPrompt: 'Stand-up escape from bottom referee\'s position - hand control + post leg + separate. 2 of 3 clean.' },
   { id: 'chain-wrestling', label: 'Chain Wrestling', level: 5, prereqs: ['leg-attacks', 'top-control', 'plyometrics'], sport: 'wrestling' },
   { id: 'counter-offense', label: 'Counter Offense', level: 5, prereqs: ['escape-standup', 'top-control'], sport: 'wrestling' },
   { id: 'peak-match-wrestling', label: 'Peak Match Performance', level: 6, prereqs: ['chain-wrestling', 'counter-offense', 'game-day-fueling'], sport: 'wrestling' },
@@ -129,7 +129,7 @@ export function readinessBand(score: number): ReadinessBand {
 
 export function bannerForReadiness(score: number): string {
   const band = readinessBand(score)
-  if (band === 'full') return 'Full readiness — all gates open.'
-  if (band === 'moderate') return 'CNS fatigue detected — high-velocity work locked.'
-  return 'Severe fatigue — recovery protocols only.'
+  if (band === 'full') return 'Full readiness - all gates open.'
+  if (band === 'moderate') return 'CNS fatigue detected - high-velocity work locked.'
+  return 'Severe fatigue - recovery protocols only.'
 }

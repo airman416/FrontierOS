@@ -26,9 +26,9 @@ export function statusBlurb(role: VisualRole): string {
     case 'highRisk':
       return 'Waiting for readiness to improve.'
     case 'conditional':
-      return 'Shaky mastery — boost confidence with downstream reps.'
+      return 'Shaky mastery - boost confidence with downstream reps.'
     case 'dueReview':
-      return 'Review spacing lapsed — revisit to keep retention.'
+      return 'Review spacing lapsed - revisit to keep retention.'
     default:
       return 'Complete prerequisites first.'
   }

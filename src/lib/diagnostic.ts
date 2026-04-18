@@ -95,7 +95,7 @@ export function buildDiagnosticEngine(skills: SkillDef[]): DiagnosticEngine {
 /**
  * A skill is probeable on-the-spot iff it's level ≤ 4 AND carries a
  * non-empty diagnosticPrompt. Levels 5–6 are integration skills that cannot
- * be graded in a single ≤60s drill during onboarding — they get inferred
+ * be graded in a single ≤60s drill during onboarding - they get inferred
  * from prereq coverage at commit time.
  */
 export function isProbeable(skill: SkillDef): boolean {
@@ -114,7 +114,7 @@ function countUnknown(ids: Set<string> | undefined, state: DiagnosticState): num
 /**
  * Pick the next skill to probe. Strategy: among probeable (level ≤ 4 with a
  * diagnostic prompt) unknown skills, pick the one whose still-unknown prereqs
- * and still-unknown postreqs are most balanced — a real binary search that
+ * and still-unknown postreqs are most balanced - a real binary search that
  * maximizes information per probe. Ties break toward mid-tier (level 2–3).
  */
 export function selectNextProbe(
@@ -146,7 +146,7 @@ export function remainingUnknownCount(state: DiagnosticState): number {
 }
 
 /**
- * Count of skills that still need a coach-graded probe — i.e. unknown AND
+ * Count of skills that still need a coach-graded probe - i.e. unknown AND
  * probeable on-the-spot. This is the true "are we done?" signal; anything
  * remaining `unknown` after this hits zero falls to the inference pass.
  */
@@ -165,7 +165,7 @@ export function remainingProbeableCount(
 
 /**
  * Count of skills the engine will probe across a full diagnostic (modulo
- * propagation) — i.e. all level-≤4 skills with prompts. Used by the UI to
+ * propagation) - i.e. all level-≤4 skills with prompts. Used by the UI to
  * show a realistic "~N probes expected" number.
  */
 export function totalProbeableCount(engine: DiagnosticEngine): number {

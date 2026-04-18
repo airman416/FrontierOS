@@ -4,7 +4,7 @@ import { coaches } from '../db/schema.js'
 import { env } from '../env.js'
 
 /**
- * Return the current coach id. Single-tenant for now — always the
+ * Return the current coach id. Single-tenant for now - always the
  * `DEFAULT_COACH_ID` seeded row. When auth is added this reads from the
  * authenticated request instead.
  */

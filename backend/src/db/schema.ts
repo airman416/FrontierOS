@@ -94,7 +94,7 @@ export const athleteGraphDraftDeltas = pgTable('athlete_graph_draft_deltas', {
 })
 
 /**
- * Legacy full-graph storage — the resolver still falls back to this when
+ * Legacy full-graph storage - the resolver still falls back to this when
  * there's no sport plan or athlete delta. Kept so older saved graphs keep
  * loading cleanly.
  */

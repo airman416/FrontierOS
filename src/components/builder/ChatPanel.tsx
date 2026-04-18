@@ -77,7 +77,7 @@ export function ChatPanel({
               ) : (
                 <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500">
                   <span className="inline-block h-3.5 w-0.5 animate-pulse bg-alpha" aria-hidden />
-                  Writing…
+                  Drafting…
                 </p>
               )}
             </div>
@@ -91,8 +91,8 @@ export function ChatPanel({
                 <span className="h-1.5 w-1.5 animate-pulse bg-alpha" />
                 <span className="h-1.5 w-1.5 animate-pulse bg-alpha [animation-delay:150ms]" />
                 <span className="h-1.5 w-1.5 animate-pulse bg-alpha [animation-delay:300ms]" />
-                <span className="ml-2 text-[11px] text-slate-500">
-                  Starting…
+                <span className="ml-2 text-[11px] text-slate-400">
+                  Generating your map…
                 </span>
               </div>
             </div>

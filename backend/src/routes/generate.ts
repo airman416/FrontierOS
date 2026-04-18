@@ -106,7 +106,7 @@ export async function registerGenerateRoutes(app: FastifyInstance): Promise<void
       return
     }
 
-    // `reply.raw.writeHead` bypasses `@fastify/cors` — browsers need these on SSE responses.
+    // `reply.raw.writeHead` bypasses `@fastify/cors` - browsers need these on SSE responses.
     const reqOrigin =
       typeof req.headers.origin === 'string' ? req.headers.origin : undefined
     const allowOrigin = accessControlAllowOrigin(reqOrigin)

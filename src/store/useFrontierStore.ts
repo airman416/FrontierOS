@@ -346,7 +346,7 @@ const DEFAULT_ATHLETE = ATHLETES[0].id
 
 /**
  * Best-effort async write. Errors are logged to the console but not surfaced
- * to the UI — every mutation is optimistic, so the local state has already
+ * to the UI - every mutation is optimistic, so the local state has already
  * been updated. The store stays consistent with the server after the next
  * successful bootstrap (on reload).
  */

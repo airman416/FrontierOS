@@ -25,7 +25,7 @@ export const ATHLETES: Athlete[] = [
     sport: 'baseball',
     avatarUrl: '/avatars/jordan.svg',
     avatarColor: '#2563eb',
-    tagline: 'Quick hands, strong arm — building late-game stamina.',
+    tagline: 'Quick hands, strong arm - building late-game stamina.',
   },
   {
     id: 'aiden-chen',

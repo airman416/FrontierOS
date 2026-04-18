@@ -30,7 +30,7 @@ export interface TodayTask {
    * sum to 100 so promoting a skill always requires 100 XP worth of work.
    */
   xp?: number
-  /** "Why this task, why now" — shown to the student on the dashboard. */
+  /** "Why this task, why now" - shown to the student on the dashboard. */
   rationale?: string
 }
 
@@ -95,7 +95,7 @@ export const TODAY_TASKS: TodayTask[] = [
     id: 'clearance-gate',
     shortLabel: 'Clearance check',
     title: 'Objective readiness check',
-    detail: 'No social promotion — benchmarks gate advancement.',
+    detail: 'No social promotion - benchmarks gate advancement.',
     sport: 'universal',
     technique: 'Objective readiness',
   },
@@ -104,7 +104,7 @@ export const TODAY_TASKS: TodayTask[] = [
   {
     id: 'batting-practice',
     shortLabel: 'BP reps',
-    title: 'Batting practice — spaced reps',
+    title: 'Batting practice - spaced reps',
     detail: 'Small daily doses beat one marathon block.',
     sport: 'baseball',
     technique: 'Spaced repetition',
@@ -113,7 +113,7 @@ export const TODAY_TASKS: TodayTask[] = [
     id: 'live-at-bats',
     shortLabel: 'Live ABs',
     title: 'Live at-bats: random pitching',
-    detail: 'Matches game chaos — read the pitch and react.',
+    detail: 'Matches game chaos - read the pitch and react.',
     sport: 'baseball',
     technique: 'Interleaving',
   },
@@ -129,7 +129,7 @@ export const TODAY_TASKS: TodayTask[] = [
     id: 'automaticity-fielding',
     shortLabel: 'Glove work',
     title: 'Low-load fielding automaticity',
-    detail: 'Field until subconscious — free attention for reads.',
+    detail: 'Field until subconscious - free attention for reads.',
     sport: 'baseball',
     technique: 'Automaticity',
   },
@@ -163,7 +163,7 @@ export const TODAY_TASKS: TodayTask[] = [
     id: 'defensive-slides',
     shortLabel: 'Def slides',
     title: 'Closeout and lateral movement',
-    detail: 'Defensive slides under fatigue — expose real gaps.',
+    detail: 'Defensive slides under fatigue - expose real gaps.',
     sport: 'basketball',
     technique: 'Testing effect',
   },
@@ -188,7 +188,7 @@ export const TODAY_TASKS: TodayTask[] = [
   {
     id: 'rondo-drill',
     shortLabel: 'Rondo',
-    title: 'Possession rondo — tight spaces',
+    title: 'Possession rondo - tight spaces',
     detail: 'First touch and passing under pressure.',
     sport: 'soccer',
     technique: 'Automaticity',
@@ -205,7 +205,7 @@ export const TODAY_TASKS: TodayTask[] = [
     id: 'pressing-triggers',
     shortLabel: 'Press triggers',
     title: 'Pressing trigger recognition',
-    detail: 'Read cues and press as a unit — expose defensive gaps.',
+    detail: 'Read cues and press as a unit - expose defensive gaps.',
     sport: 'soccer',
     technique: 'Testing effect',
   },
@@ -220,7 +220,7 @@ export const TODAY_TASKS: TodayTask[] = [
   {
     id: 'small-sided-game',
     shortLabel: 'SSG',
-    title: 'Small-sided game — 7v7',
+    title: 'Small-sided game - 7v7',
     detail: 'High-intensity game simulation with tactical constraints.',
     sport: 'soccer',
     technique: 'Encompassings',
@@ -247,7 +247,7 @@ export const TODAY_TASKS: TodayTask[] = [
     id: 'race-pace-test',
     shortLabel: 'Race pace',
     title: 'Race-pace broken swim',
-    detail: 'Split a race into segments — hit target pace per segment.',
+    detail: 'Split a race into segments - hit target pace per segment.',
     sport: 'swimming',
     technique: 'Testing effect',
   },
@@ -262,7 +262,7 @@ export const TODAY_TASKS: TodayTask[] = [
   {
     id: 'mock-meet',
     shortLabel: 'Mock meet',
-    title: 'Simulated meet — full warm-up to race',
+    title: 'Simulated meet - full warm-up to race',
     detail: 'Practice the entire meet-day routine under time pressure.',
     sport: 'swimming',
     technique: 'Encompassings',
@@ -331,7 +331,7 @@ export const TODAY_TASKS: TodayTask[] = [
     id: 'live-wrestling',
     shortLabel: 'Live goes',
     title: 'Live wrestling from neutral',
-    detail: 'Full resistance — expose real gaps in positioning.',
+    detail: 'Full resistance - expose real gaps in positioning.',
     sport: 'wrestling',
     technique: 'Testing effect',
   },
@@ -373,7 +373,7 @@ export const TODAY_TASKS: TodayTask[] = [
     id: 'block-dig-test',
     shortLabel: 'Block-dig',
     title: 'Block-dig transition drill',
-    detail: 'React to the hitter — block or dig under game pressure.',
+    detail: 'React to the hitter - block or dig under game pressure.',
     sport: 'volleyball',
     technique: 'Testing effect',
   },
@@ -388,7 +388,7 @@ export const TODAY_TASKS: TodayTask[] = [
   {
     id: 'wash-drill',
     shortLabel: 'Wash drill',
-    title: 'Wash drill — full rally simulation',
+    title: 'Wash drill - full rally simulation',
     detail: 'Complete rally sequences integrating serve, pass, set, and attack.',
     sport: 'volleyball',
     technique: 'Encompassings',

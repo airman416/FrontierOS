@@ -60,9 +60,12 @@ export function AthleteHome() {
   const getResolvedAthleteGraph = useFrontierStore((s) => s.getResolvedAthleteGraph)
   const getDashboardTasks = useFrontierStore((s) => s.getDashboardTasks)
   const getAthleteDiagnostic = useFrontierStore((s) => s.getAthleteDiagnostic)
-  const getAthleteSkillProgress = useFrontierStore((s) => s.getAthleteSkillProgress)
+  const skillProgress = useFrontierStore((s) => s.athleteSkillProgress[selectedAthleteId])
   const completeTask = useFrontierStore((s) => s.completeTask)
-  const reviewStateAll = useFrontierStore((s) => s.athleteReviewState)
+  const reviewState = useFrontierStore((s) => s.athleteReviewState[selectedAthleteId])
+  const dashboardEpoch = useFrontierStore(
+    (s) => s.athleteDashboard[selectedAthleteId]?.updatedAt ?? 0,
+  )
 
   const athlete = ATHLETE_BY_ID[selectedAthleteId]
   const resolvedGraph = useMemo(
@@ -88,12 +91,11 @@ export function AthleteHome() {
   const diagnostic = getAthleteDiagnostic(selectedAthleteId)
   const supportsAdaptive = sportSkills.some((s) => !!s.diagnosticPrompt)
 
-  const skillProgress = getAthleteSkillProgress(selectedAthleteId)
-  const reviewState = reviewStateAll[selectedAthleteId] ?? {}
+  const skillProgressMap = skillProgress ?? {}
 
   const dashboardTasks = useMemo(
     () => (diagnostic ? getDashboardTasks(selectedAthleteId) : []),
-    [diagnostic, getDashboardTasks, selectedAthleteId],
+    [diagnostic, getDashboardTasks, selectedAthleteId, mastered, dashboardEpoch],
   )
 
   const [justCompleted, setJustCompleted] = useState<Set<string>>(new Set())
@@ -109,7 +111,7 @@ export function AthleteHome() {
   )
 
   const now = Date.now()
-  const due = dueSkills(mastered, reviewState, now)
+  const due = dueSkills(mastered, reviewState ?? {}, now)
 
   const topImportance = dashboardTasks.reduce((max, t) => {
     const imp = importance({
@@ -141,7 +143,10 @@ export function AthleteHome() {
   return (
     <div className="min-h-[100dvh] bg-[#0a0b10]">
       {/* Header */}
-      <header className="border-b border-border-subtle bg-surface px-4 py-3 md:px-6">
+      <header
+        data-tour="athlete-tour-wrap-up"
+        className="border-b border-border-subtle bg-surface px-4 py-3 md:px-6"
+      >
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <div className="flex items-center gap-3">
             <select
@@ -163,7 +168,7 @@ export function AthleteHome() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-2xl px-4 py-6 md:px-6">
+      <div data-tour="athlete-home-daily" className="mx-auto max-w-2xl px-4 py-6 md:px-6">
         {/* Hero card */}
         <div className="flex flex-col items-center border border-border-subtle bg-surface-raised p-6 text-center">
           {athlete.avatarUrl ? (
@@ -193,10 +198,10 @@ export function AthleteHome() {
 
           <p className="mt-3 text-xs font-medium text-slate-400">
             {totalSkills > 0 && masteredCount === totalSkills
-              ? 'All skills mastered — peak performance unlocked.'
+              ? 'All skills mastered - peak performance unlocked.'
               : masteredCount > 0
                 ? `Working on ${frontierSkills.length} frontier skill${frontierSkills.length === 1 ? '' : 's'}`
-                : 'Just getting started — build your foundation.'}
+                : 'Just getting started - build your foundation.'}
           </p>
         </div>
 
@@ -224,7 +229,7 @@ export function AthleteHome() {
             </h2>
             <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
               {frontierSkills.slice(0, 4).map((skill) => {
-                const xp = Math.max(0, Math.min(100, skillProgress[skill.id] ?? 0))
+                const xp = Math.max(0, Math.min(100, skillProgressMap[skill.id] ?? 0))
                 return (
                   <div
                     key={skill.id}
@@ -276,7 +281,7 @@ export function AthleteHome() {
             <ul className="mt-3 space-y-2">
               {dashboardTasks.length === 0 && (
                 <li className="border border-border-subtle bg-surface-raised p-4 text-center text-[11px] italic text-slate-500">
-                  No eligible tasks — your coach may need to regenerate your plan.
+                  No eligible tasks - your coach may need to regenerate your plan.
                 </li>
               )}
               {dashboardTasks.map((t) => {
@@ -290,7 +295,7 @@ export function AthleteHome() {
                     due={due}
                     topImportance={topImportance}
                     postreqClosure={postreqClosure}
-                    skillProgress={skillProgress}
+                    skillProgress={skillProgressMap}
                     mastered={mastered}
                     checked={isCompleting}
                     onCheck={() => handleCheck(t.id)}

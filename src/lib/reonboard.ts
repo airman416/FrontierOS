@@ -7,7 +7,7 @@ import type { DiagnosticEntry } from './diagnostic'
  * When a new team plan is generated, previously-onboarded athletes need
  * mastered/conditional states ported onto the new skill graph. The real product
  * calls an LLM with the prior diagnostic log + new graph and gets back a seed;
- * for the demo we fuzzy-match on skill label — lowercase + alpha-num tokens.
+ * for the demo we fuzzy-match on skill label - lowercase + alpha-num tokens.
  *
  * The returned seed drops any skill that can't be confidently matched, biasing
  * toward conservative re-entry (coach can always promote with Override).
@@ -87,7 +87,7 @@ export function seedFromPriorDiagnostic(opts: {
   const rationale =
     mastered.length + Object.keys(conditional).length > 0
       ? `Ported ${mastered.length} mastered + ${Object.keys(conditional).length} conditional from prior diagnostic via label match.`
-      : 'No skills could be reliably ported from the prior diagnostic — coach may want to re-run it.'
+      : 'No skills could be reliably ported from the prior diagnostic - coach may want to re-run it.'
 
   return { mastered, conditional, rationale }
 }

@@ -5,9 +5,9 @@ import {
   ReactFlow,
   useEdgesState,
   useNodesState,
+  useReactFlow,
   type NodeTypes,
   type NodeMouseHandler,
-  type Node as RFNode,
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo } from 'react'
 import type { SkillDef } from '../../data/graph'
@@ -21,12 +21,27 @@ export type { DeltaView, Divergence } from '../../lib/graphDelta'
 
 const nodeTypes: NodeTypes = { skill: PreviewSkillNode, levelGroup: LevelGroupNode, lane: LaneNode }
 
-type FitViewOpts = {
-  padding?: number
-  duration?: number
-  nodes?: Pick<RFNode, 'id'>[]
-  maxZoom?: number
-  minZoom?: number
+/** Recenters the viewport on the full graph whenever nodes change (e.g. streaming generation). */
+function AutoFitBounds({ graphRevision }: { graphRevision: string }) {
+  const { fitView, getNodes } = useReactFlow()
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      requestAnimationFrame(() => {
+        const visible = getNodes().filter((n) => !n.hidden)
+        if (visible.length === 0) return
+        fitView({
+          padding: 0.36,
+          duration: 260,
+          maxZoom: 1.45,
+          minZoom: 0.06,
+        })
+      })
+    }, 72)
+    return () => clearTimeout(t)
+  }, [graphRevision, fitView, getNodes])
+
+  return null
 }
 
 const LEVEL_COLORS: Record<number, string> = {
@@ -112,24 +127,9 @@ export function GraphPreview({
     )
   }, [layoutSkills, selectedNodeId, setNodes, setEdges, divergenceById])
 
-  const fitViewOnRoots = useCallback(
-    (rf: { fitView: (opts?: FitViewOpts) => void }) => {
-      if (layoutSkills.length === 0) {
-        rf.fitView({ padding: 0.15, duration: 0 })
-        return
-      }
-      const minLevel = Math.min(...layoutSkills.map((s) => s.level))
-      const rootIds = new Set(
-        layoutSkills.filter((s) => s.level === minLevel).map((s) => s.id),
-      )
-      const rootNodes = layoutNodes.filter((n) => rootIds.has(n.id))
-      if (rootNodes.length > 0) {
-        rf.fitView({ nodes: rootNodes, padding: 0.6, duration: 0, maxZoom: 1.2 })
-      } else {
-        rf.fitView({ padding: 0.15, duration: 0 })
-      }
-    },
-    [layoutSkills, layoutNodes],
+  const graphRevision = useMemo(
+    () => `${layoutSkills.length}:${layoutSkills.map((s) => s.id).sort().join('|')}`,
+    [layoutSkills],
   )
 
   const handleNodeClick: NodeMouseHandler = useCallback(
@@ -171,7 +171,9 @@ export function GraphPreview({
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
         onInit={(rf) => {
-          requestAnimationFrame(() => fitViewOnRoots(rf))
+          requestAnimationFrame(() => {
+            rf.fitView({ padding: 0.36, duration: 0, maxZoom: 1.45, minZoom: 0.06 })
+          })
         }}
         nodesDraggable={false}
         nodesConnectable={false}
@@ -179,6 +181,7 @@ export function GraphPreview({
         maxZoom={1.85}
         className="bg-[#0c0d14]"
       >
+        <AutoFitBounds graphRevision={graphRevision} />
         <Background gap={24} size={0.8} color="#1e2030" />
         <Controls
           showInteractive={false}

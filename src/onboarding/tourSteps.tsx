@@ -1,297 +1,191 @@
-import type { Step } from 'react-joyride'
+import type { StepType } from '@reactour/tour'
+import type { PositionProps } from '@reactour/popover'
+import type { RectResult } from '@reactour/utils'
 
-function TechniqueContent({
-  color,
-  technique,
-  description,
-  example,
-}: {
-  color: string
-  technique: string
-  description: string
-  example: string
-}) {
-  return (
-    <div className="space-y-2 text-left">
-      <span
-        className="inline-block px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
-        style={{ backgroundColor: color }}
-      >
-        {technique}
-      </span>
-      <p className="text-[13px] leading-relaxed text-slate-300">
-        {description}
-      </p>
-      <p className="text-[11px] leading-snug text-slate-500">
-        <span className="font-semibold text-slate-400">In practice:</span>{' '}
-        {example}
-      </p>
-    </div>
-  )
+/** Stable selectors for tour orchestration (e.g. advance after switching to athlete role). */
+export const ROLE_TOGGLE_TOUR_SELECTOR = '[data-tour="role-toggle"]'
+export const ATHLETE_HOME_PREVIEW_SELECTOR = '[data-tour="athlete-home-daily"]'
+export const ATHLETE_TOUR_WRAP_UP_SELECTOR = '[data-tour="athlete-tour-wrap-up"]'
+
+/** Avoid Reactour falling back to `center` (covers the graph) when the map is full-width. */
+function skillMapTourPosition(props: PositionProps, _prev: RectResult): 'bottom' | 'left' | 'right' {
+  const minSide = 340
+  const spaceRight = props.windowWidth - props.right
+  const spaceLeft = props.left
+  if (spaceRight >= minSide) return 'right'
+  if (spaceLeft >= minSide) return 'left'
+  return 'bottom'
 }
 
-/* ── Phase 1: Dashboard ── */
-
-export function getDashboardTourSteps(): Step[] {
-  return [
-    {
-      target: '[data-tour="dashboard-header"]',
-      title: 'Welcome to Frontier OS',
-      content:
-        'The coaching dashboard for Texas Sports Academy. This tour covers the roster, team heatmap, coach vs. athlete views, and walks through every learning-science technique powering development.',
-      placement: 'bottom',
-      skipBeacon: true,
-    },
-    {
-      target: '[data-tour="roster-tour-anchor"]',
-      spotlightTarget: '[data-tour="roster-grid"]',
-      title: 'Athlete roster',
-      content:
-        'Every athlete at a glance \u2014 mastery progress and readiness score. Green bars show how far through the skill tree each player has progressed.',
-      placement: 'bottom',
-    },
-    {
-      target: '[data-tour="heatmap-tab"]',
-      title: 'Team Heatmap',
-      content:
-        'Switch tabs to see all athletes \u00d7 all skills in one grid. Instantly spot team-wide gaps and identify who needs focused coaching.',
-      placement: 'bottom',
-    },
-    {
-      target: '[data-tour="role-toggle"]',
-      title: 'Coach vs. Athlete view',
-      content:
-        'Toggle between Coach and Athlete mode. Coaches see the full roster, heatmap, and skill tree. Athletes see only their daily tasks, progress ring, and next skills to unlock \u2014 no full tree. This keeps them focused on today instead of overwhelmed by the whole map.',
-      placement: 'bottom',
-    },
-    {
-      target: '[data-tour="roster-card-first"]',
-      title: 'Skill map',
-      content:
-        'Each athlete has an interactive skill map \u2014 a prerequisite graph of athletic, nutritional, and technical skills. Let\u2019s open one and walk through the science.',
-      placement: 'right',
-    },
-  ]
+/**
+ * Builder header controls sit near the top. If `bottom` does not fit, @reactour/popover runs
+ * auto-position and often picks `top`, which uses `targetTop - height` and clips under the
+ * viewport. Prefer `bottom` only when there is room; otherwise `center` (never `top`).
+ */
+function topBarTourPosition(props: PositionProps, _prev: RectResult): 'bottom' | 'center' {
+  const popoverPad = 16 // keep in sync with `TourProvider` `padding.popover` in App.tsx
+  const spaceBelow = props.windowHeight - props.bottom
+  if (spaceBelow > props.height + popoverPad) return 'bottom'
+  return 'center'
 }
 
-/* ── Phase 2: Skill map ── */
-
-export function getTreeTourSteps(): Step[] {
-  return [
-    /* ── Navigation ── */
-    {
-      target: '[data-tour="tree-header"]',
-      title: 'Navigation',
-      content:
-        'Back returns to the roster. Reset clears mastery to the starting state.',
-      placement: 'bottom',
-      skipBeacon: true,
-    },
-
-    /* ── Technique 1: Knowledge graph ── */
-    {
-      target: '[data-tour="skill-canvas"]',
-      title: '\u2460 Knowledge Graph',
-      content: (
-        <TechniqueContent
-          color="#2563eb"
-          technique="Knowledge graph"
-          description={
-            'Each node is a skill, and arrows are prerequisites. A skill only unlocks once every prerequisite is mastered \u2014 building on verified foundations prevents gaps that compound later.'
-          }
-          example={
-            '\u201cMobility + core\u201d \u2014 Jordan hits ankle dorsiflexion and core anti-rotation before heavy squats, because the graph won\u2019t let him skip them.'
-          }
-        />
-      ),
-      placement: 'center',
-    },
-
-    /* ── Technique 2: Physical frontier ── */
-    {
-      target: '[data-tour="skill-canvas"]',
-      title: '\u2461 Physical Frontier',
-      content: (
-        <TechniqueContent
-          color="#7c3aed"
-          technique="Physical frontier"
-          description={
-            'Blue nodes are the frontier \u2014 the exact skills this athlete is ready to learn right now. Training targets actual weak points instead of running a generic program.'
-          }
-          example={
-            '\u201cRepeat sprints\u201d \u2014 this athlete\u2019s limiter is late-inning repeat effort, so the system puts it on the frontier.'
-          }
-        />
-      ),
-      placement: 'center',
-    },
-
-    /* ── Technique 3: Autoregulation ── */
-    {
-      target: '[data-tour="readiness-strip"]',
-      title: '\u2462 Autoregulation',
-      content: (
-        <TechniqueContent
-          color="#db2777"
-          technique="Autoregulation"
-          description={
-            'Drag the slider to simulate fatigue. The graph reacts \u2014 high-impact skills lock when readiness drops. Volume and intensity adjust automatically based on the athlete\u2019s current state.'
-          }
-          example={
-            '\u201cAuto-adjust\u201d \u2014 if CNS is fatigued, bar speed targets drop and recovery fueling bumps up.'
-          }
-        />
-      ),
-      placement: 'left',
-    },
-
-    /* ── Technique 4: Objective readiness ── */
-    {
-      target: '[data-tour="node-inspector"]',
-      title: '\u2463 Objective Readiness',
-      content: (
-        <TechniqueContent
-          color="#ca8a04"
-          technique="Objective readiness"
-          description={
-            'Tap any node to inspect it. Athletes advance by demonstrating mastery on benchmarks \u2014 not by age or time served. No social promotion.'
-          }
-          example={
-            '\u201cClearance check\u201d \u2014 benchmarks gate advancement. An athlete stays at a level until the numbers say they\u2019re ready.'
-          }
-        />
-      ),
-      placement: 'left',
-    },
-
-    /* ── Technique 5: Spaced repetition ── */
-    {
-      target: '[data-tour="task-batting-practice"]',
-      title: '\u2464 Spaced Repetition',
-      content: (
-        <TechniqueContent
-          color="#059669"
-          technique="Spaced repetition"
-          description={
-            'Spreading practice across sessions produces stronger, longer-lasting motor memory than marathon blocks. Small daily doses beat cram sessions.'
-          }
-          example={
-            '\u201cBP reps\u201d \u2014 short batting practice sets every day, not one exhausting block per week.'
-          }
-        />
-      ),
-      placement: 'left',
-    },
-
-    /* ── Technique 6: Interleaving ── */
-    {
-      target: '[data-tour="task-live-at-bats"]',
-      title: '\u2465 Interleaving',
-      content: (
-        <TechniqueContent
-          color="#3b82f6"
-          technique="Interleaving"
-          description={
-            'Mixing different skill types in a single session transfers to real game situations better than blocked repetition of one drill.'
-          }
-          example={
-            '\u201cLive ABs\u201d \u2014 live at-bats against random pitch sequences force read-and-react decisions, not rehearsed timing.'
-          }
-        />
-      ),
-      placement: 'left',
-    },
-
-    /* ── Technique 7: Testing effect ── */
-    {
-      target: '[data-tour="task-pressure-abs"]',
-      title: '\u2466 Testing Effect',
-      content: (
-        <TechniqueContent
-          color="#ea580c"
-          technique="Testing effect"
-          description={
-            'Retrieval under pressure reveals what truly stuck and actively strengthens retention. Uncontested reps mask gaps.'
-          }
-          example={
-            '\u201cClutch ABs\u201d \u2014 hit against live arms in high-leverage counts. If it only works off a tee, it hasn\u2019t stuck.'
-          }
-        />
-      ),
-      placement: 'left',
-    },
-
-    /* ── Technique 8: Non-interference ── */
-    {
-      target: '[data-tour="task-non-interference"]',
-      title: '\u2467 Non-interference',
-      content: (
-        <TechniqueContent
-          color="#64748b"
-          technique="Non-interference"
-          description={
-            'One primary motor pattern per training window. Stacking competing movement patterns in the same session interferes with memory consolidation for both.'
-          }
-          example={
-            '\u201cSingle focus\u201d \u2014 isolate one motor habit per micro-cycle so it consolidates overnight without competition.'
-          }
-        />
-      ),
-      placement: 'left',
-    },
-
-    /* ── Technique 9: Automaticity ── */
-    {
-      target: '[data-tour="task-automaticity"]',
-      title: '\u2468 Automaticity',
-      content: (
-        <TechniqueContent
-          color="#6366f1"
-          technique="Automaticity"
-          description={
-            'Practicing basics until they are fully automatic frees the athlete\u2019s conscious attention for game reads and decision-making.'
-          }
-          example={
-            '\u201cGlove work\u201d \u2014 low-load fielding drills until the glove works on its own, so eyes stay up and read the play.'
-          }
-        />
-      ),
-      placement: 'left',
-    },
-
-    /* ── Technique 10: Encompassings ── */
-    {
-      target: '[data-tour="task-encompassings"]',
-      title: '\u2469 Encompassings',
-      content: (
-        <TechniqueContent
-          color="#0f766e"
-          technique="Encompassings"
-          description={
-            'Advanced activities naturally reinforce many foundation skills at once. Complex game scenarios rehearse sprint, jump, and spatial awareness simultaneously.'
-          }
-          example={
-            '\u201cIntrasquad\u201d \u2014 intrasquad scrimmages combine baserunning, fielding, situational play, and conditioning in a single rep.'
-          }
-        />
-      ),
-      placement: 'left',
-    },
-
-    /* ── Legend ── */
-    {
-      target: '[data-tour="map-key"]',
-      title: 'Legend',
-      content: 'Decode node colors at a glance.',
-      placement: 'left',
-    },
-
-    /* ── Roadmap ── */
-    {
-      target: '[data-tour="roadmap"]',
-      title: 'Roadmap',
-      content: 'Planned features \u2014 not in the build yet.',
-      placement: 'left',
-    },
-  ]
+/** Pin the popover just under the highlight; named sides often auto-pick `top` and clip at the viewport edge. */
+function popoverBelowHighlightedTarget(
+  props: PositionProps,
+  _prev: RectResult,
+): 'bottom' | [number, number] {
+  const gap = 12
+  const margin = 12
+  if (props.width <= 0 || props.height <= 0) return 'bottom'
+  const targetMidX = (props.left + props.right) / 2
+  let x = targetMidX - props.width / 2
+  x = Math.min(Math.max(margin, x), props.windowWidth - props.width - margin)
+  const y = props.bottom + gap
+  return [x, y]
 }
+
+export function dashboardFirstStep(hasExistingTeamPlan: boolean): StepType {
+  if (hasExistingTeamPlan) {
+    return {
+      selector: '[data-tour="team-plan-cta"]',
+      content:
+        'Tap Generate Team Plan or Edit Team Plan. The tour picks up again on the next screen.',
+      position: 'bottom',
+      disableActions: true,
+      stepInteraction: true,
+    }
+  }
+  return {
+    selector: '[data-tour="start-here-banner"]',
+    content:
+      'Tap the big Generate Team Plan button. The tour keeps going on the next screen after you tap.',
+    position: 'bottom',
+    disableActions: true,
+    stepInteraction: true,
+  }
+}
+
+/** Team plan builder: form stage (one spotlight so the mask does not cover Generate). */
+export const builderFormTourSteps: StepType[] = [
+  {
+    selector: '[data-tour="builder-form-card"]',
+    content:
+      'Say how you coach your team. You can write a little or a lot. You can fix details later. When you are ready, tap Generate Team Plan and wait until the picture of skills appears.',
+    position: 'right',
+    disableActions: true,
+    stepInteraction: true,
+  },
+]
+
+/** Map first, then optional chat so skipping edits is obvious (use the tour forward arrow). */
+const graphPreviewStep: StepType = {
+  selector: '[data-tour="builder-graph-preview"]',
+  content:
+    "This map shows all your team's skills in one picture.\n\nEach box is a skill. Lines show how easier skills connect to harder ones.\n\nTap a box to read about it. Drag to move the map.\n\nWant the next tip? Tap the forward arrow below. You do not have to change anything yet.",
+  position: skillMapTourPosition,
+  /** Reset Reactour’s global `disabledActions` after a step that used `disableActions: true`. */
+  disableActions: false,
+}
+
+const chatPanelStep: StepType = {
+  selector: '[data-tour="builder-chat-panel"]',
+  content:
+    'Want to change the map? Type here and send. Each answer updates the picture. Happy with it? Tap the forward arrow on this tour to skip this step.',
+  position: 'right',
+  disableActions: false,
+}
+
+const proceedOnboardingStep: StepType = {
+  selector: '[data-tour="builder-proceed-onboarding"]',
+  content:
+    'When you are ready for athletes to take the short check-in quiz, tap Proceed to onboarding. You go back to your roster.',
+  position: popoverBelowHighlightedTarget,
+  disableActions: true,
+  stepInteraction: true,
+}
+
+/** Post–check-in summary modal; before `studentDetailTourSteps` when the welcome tour continues there. */
+export const diagnosticSummaryTrainingMenuStep: StepType = {
+  selector: '[data-tour="diagnostic-summary-training-menu"]',
+  content:
+    "Tap the button with their name: View …'s Training Menu. That opens their drills and map for the next part of this walkthrough.",
+  position: popoverBelowHighlightedTarget,
+  disableActions: true,
+  stepInteraction: true,
+}
+
+const dashboardBackStep: StepType = {
+  selector: '[data-tour="builder-dashboard-back"]',
+  content:
+    'Tap Dashboard when you want to leave. From the roster you can open each player for drills or the check-in quiz.',
+  position: topBarTourPosition,
+  disableActions: false,
+}
+
+/** Chat phase: map, optional chat, then proceed or Dashboard. */
+export function builderChatTourSteps(includeProceedOnboarding: boolean): StepType[] {
+  const tail = includeProceedOnboarding ? proceedOnboardingStep : dashboardBackStep
+  return [graphPreviewStep, chatPanelStep, tail]
+}
+
+/** After one diagnostic, on the student detail screen (welcome “full” tour only). */
+export const studentDetailTourSteps: StepType[] = [
+  {
+    selector: '[data-tour="student-onboarding-stats"]',
+    content:
+      'The check-in you just finished sorted skills into mastered, conditional, and still to learn. Those counts drive what shows up on the map and in the training menu.',
+    position: 'bottom',
+    disableActions: false,
+  },
+  {
+    selector: '[data-tour="student-training-menu"]',
+    content:
+      'This is their training menu preview: tasks and drills picked from the team plan and where this athlete sits on the graph.',
+    position: 'left',
+    disableActions: false,
+  },
+  {
+    selector: '[data-tour="student-skill-graph"]',
+    content:
+      'This map mirrors your team plan: easier skills settle under tougher ones like rungs on a ladder. Tap any skill to inspect it.',
+    position: 'right',
+    disableActions: false,
+  },
+  {
+    selector: '[data-tour="student-finetune-hint"]',
+    content:
+      'Later you can fine-tune only this athlete’s map without redoing the whole team. It stays here whenever you come back.',
+    position: 'left',
+    disableActions: false,
+  },
+  {
+    selector: '[data-tour="student-task-list"]',
+    content:
+      'Tasks on the right line up with skills that need work. Athletes check these off as they train.',
+    position: 'left',
+    disableActions: false,
+  },
+  {
+    selector: ROLE_TOGGLE_TOUR_SELECTOR,
+    content:
+      'Tap Athlete on this switch to see what players see on their own screen. The next tip opens right after you switch.',
+    position: popoverBelowHighlightedTarget,
+    disableActions: true,
+    stepInteraction: true,
+  },
+  {
+    selector: ATHLETE_HOME_PREVIEW_SELECTOR,
+    content:
+      'What players see here:\n• Check off today\'s work and see whether they\'re on track.\n• Dip in between classes and practice: short visits, not a long homework portal.\n\nOn our roadmap:\n• Short video cues from coaches.\n• Wearable signals so effort is tracked fairly.\n• Small teammate groups so people hold each other accountable: tasks get marked honestly, not half-checked just to clear the list.',
+    /** Large highlight; center keeps the card readable on small screens. */
+    position: 'center',
+    disableActions: false,
+  },
+  {
+    selector: ATHLETE_TOUR_WRAP_UP_SELECTOR,
+    content:
+      "You're at the end of this walkthrough.\n\nTake your time exploring: use the training menu, switch roles with Coach / Athlete when you want, or tap X to close the tour and browse on your own.",
+    position: 'center',
+    disableActions: false,
+  },
+]

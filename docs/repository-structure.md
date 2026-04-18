@@ -6,8 +6,8 @@ Where the main code and config live in FrontierOS.
 
 | Area | Role |
 |------|------|
-| `package.json`, `vite.config.ts`, `src/` | **Frontend** — Vite + React + TypeScript SPA |
-| `backend/` | **API** — separate Node package (Fastify), own `package.json`, deployed (e.g. Fly.io) |
+| `package.json`, `vite.config.ts`, `src/` | **Frontend** - Vite + React + TypeScript SPA |
+| `backend/` | **API** - separate Node package (Fastify), own `package.json`, deployed (e.g. Fly.io) |
 | `public/` | Static assets served as-is (icons, favicon, sample avatars) |
 | `images/` | Screenshots for the root README |
 | `netlify.toml` | Static host + `/api/*` proxy to the backend |

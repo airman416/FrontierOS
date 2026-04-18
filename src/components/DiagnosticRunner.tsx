@@ -37,9 +37,9 @@ const VERDICT_LABEL: Record<DiagnosticVerdict, string> = {
 }
 
 const VERDICT_HELP: Record<DiagnosticVerdict, string> = {
-  pass: 'Clean execution — meets the benchmark.',
-  fail: 'Missed the benchmark — can\'t do this yet.',
-  conditional: 'Partial / slow / hesitant — knows the idea but shaky.',
+  pass: 'Clean execution - meets the benchmark.',
+  fail: 'Missed the benchmark - can\'t do this yet.',
+  conditional: 'Partial / slow / hesitant - knows the idea but shaky.',
 }
 
 export function DiagnosticRunner({ athlete, onFinish, onCancel }: DiagnosticRunnerProps) {
@@ -193,7 +193,7 @@ function IntroPanel({
         <span className="font-semibold text-amber-400">Partial</span>.
       </p>
       <p className="text-[12px] leading-snug text-slate-400">
-        Only foundation + development skills (Lvl 1–4) are probed here — integration &amp; peak-game
+        Only foundation + development skills (Lvl 1–4) are probed here - integration &amp; peak-game
         skills (Lvl 5–6) aren't gradeable in a single drill, so we <span className="font-semibold text-slate-300">infer</span> them from
         the prerequisites once probing is done.
       </p>
@@ -201,19 +201,19 @@ function IntroPanel({
         <li className="flex gap-2">
           <span className="mt-1.5 h-1.5 w-1.5 shrink-0 bg-emerald-500" aria-hidden />
           <span>
-            <span className="font-semibold text-emerald-400">Pass</span> — the skill and all its prereqs drop out of the queue.
+            <span className="font-semibold text-emerald-400">Pass</span> - the skill and all its prereqs drop out of the queue.
           </span>
         </li>
         <li className="flex gap-2">
           <span className="mt-1.5 h-1.5 w-1.5 shrink-0 bg-rose-500" aria-hidden />
           <span>
-            <span className="font-semibold text-rose-400">Fail</span> — the skill and anything built on top of it stays unknown.
+            <span className="font-semibold text-rose-400">Fail</span> - the skill and anything built on top of it stays unknown.
           </span>
         </li>
         <li className="flex gap-2">
           <span className="mt-1.5 h-1.5 w-1.5 shrink-0 bg-amber-500" aria-hidden />
           <span>
-            <span className="font-semibold text-amber-400">Partial</span> — counts as known, but flagged for extra scrutiny in review.
+            <span className="font-semibold text-amber-400">Partial</span> - counts as known, but flagged for extra scrutiny in review.
           </span>
         </li>
       </ul>
@@ -280,7 +280,7 @@ function ProbePanel({
         <p className="mt-1 text-sm leading-snug text-slate-200">
           {skill.diagnosticPrompt ?? (
             <span className="italic text-slate-500">
-              No diagnostic prompt on this skill — use your judgment. (Regenerate the team plan to add one.)
+              No diagnostic prompt on this skill - use your judgment. (Regenerate the team plan to add one.)
             </span>
           )}
         </p>
@@ -294,7 +294,7 @@ function ProbePanel({
           value={note}
           onChange={(e) => onNoteChange(e.target.value)}
           rows={2}
-          placeholder="Observations — only seen in the log."
+          placeholder="Observations - only seen in the log."
           className="resize-none border border-border-subtle bg-surface-elevated px-2.5 py-2 text-[12px] text-slate-200 outline-none transition focus:border-alpha"
         />
       </label>
@@ -397,7 +397,7 @@ function SummaryPanel({
             Inferred from prereqs
           </p>
           <p className="mt-1 text-[11px] leading-snug text-slate-500">
-            These skills can't be graded in a single on-the-spot drill — status was derived from
+            These skills can't be graded in a single on-the-spot drill - status was derived from
             prerequisite coverage.
           </p>
           <ul className="mt-2 space-y-1">

@@ -87,7 +87,7 @@ export function seedFromPriorDiagnostic(opts: {
   const rationale =
     mastered.length + Object.keys(conditional).length > 0
       ? `Ported ${mastered.length} mastered + ${Object.keys(conditional).length} conditional from prior diagnostic via label match.`
-      : 'No skills could be reliably ported from the prior diagnostic — coach may want to re-run it.'
+      : 'No skills could be reliably ported from the prior diagnostic - coach may want to re-run it.'
 
   return { mastered, conditional, rationale }
 }

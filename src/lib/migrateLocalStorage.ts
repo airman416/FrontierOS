@@ -78,7 +78,7 @@ export async function migrateLocalStorageIfNeeded(): Promise<void> {
     localStorage.setItem(MIGRATION_FLAG, '1')
     console.info(`[FrontierOS] Migrated ${totalCount} legacy records to Postgres.`)
   } catch (err) {
-    // Don't flip the flag on failure — we'll retry next load.
+    // Don't flip the flag on failure - we'll retry next load.
     console.warn('[FrontierOS] localStorage migration failed, will retry next load', err)
   }
 }

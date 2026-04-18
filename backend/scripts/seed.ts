@@ -33,7 +33,7 @@ async function main() {
     .where(eq(coaches.id, DEFAULT_COACH_ID))
   if (existing.length === 0) {
     throw new Error(
-      'Default coach row not found after insert — check DEFAULT_COACH_ID format',
+      'Default coach row not found after insert - check DEFAULT_COACH_ID format',
     )
   }
 

@@ -112,45 +112,50 @@ export function StudentDetailView({ athleteId, onBack, onFineTune }: StudentDeta
         >
           ← Roster
         </button>
-        {athlete.avatarUrl ? (
-          <img
-            src={athlete.avatarUrl}
-            alt=""
-            width={36}
-            height={36}
-            className="hidden h-9 w-9 border border-border-subtle sm:block"
-          />
-        ) : (
-          <span
-            className="hidden h-9 w-9 shrink-0 items-center justify-center text-sm font-bold text-white sm:flex"
-            style={{ backgroundColor: athlete.avatarColor }}
-          >
-            {getInitials(athlete.displayName)}
-          </span>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-bold text-white">{athlete.displayName}</p>
-            {reonboardStatus?.aiReonboarded && !reonboardStatus.confirmed && (
-              <span
-                className="shrink-0 border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-300"
-                title={reonboardStatus.rationale}
-              >
-                AI re-onboarded
-              </span>
-            )}
-            {draftDelta && (
-              <span
-                className="shrink-0 border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-sky-300"
-                title="A fine-tuned plan is drafted but not yet accepted into the training menu."
-              >
-                Pending fine-tune
-              </span>
-            )}
+        <div
+          data-tour="student-onboarding-stats"
+          className="flex min-w-0 flex-1 items-center gap-3 md:gap-4"
+        >
+          {athlete.avatarUrl ? (
+            <img
+              src={athlete.avatarUrl}
+              alt=""
+              width={36}
+              height={36}
+              className="hidden h-9 w-9 shrink-0 border border-border-subtle sm:block"
+            />
+          ) : (
+            <span
+              className="hidden h-9 w-9 shrink-0 items-center justify-center text-sm font-bold text-white sm:flex"
+              style={{ backgroundColor: athlete.avatarColor }}
+            >
+              {getInitials(athlete.displayName)}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-bold text-white">{athlete.displayName}</p>
+              {reonboardStatus?.aiReonboarded && !reonboardStatus.confirmed && (
+                <span
+                  className="shrink-0 border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-300"
+                  title={reonboardStatus.rationale}
+                >
+                  AI re-onboarded
+                </span>
+              )}
+              {draftDelta && (
+                <span
+                  className="shrink-0 border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-sky-300"
+                  title="A fine-tuned plan is drafted but not yet accepted into the training menu."
+                >
+                  Pending fine-tune
+                </span>
+              )}
+            </div>
+            <p className="truncate text-[11px] text-slate-500">
+              {athlete.position} · {athlete.schoolYear} · {masteredSkills.length}/{skills.length} mastered
+            </p>
           </div>
-          <p className="truncate text-[11px] text-slate-500">
-            {athlete.position} · {athlete.schoolYear} · {masteredSkills.length}/{skills.length} mastered
-          </p>
         </div>
         <div className="hidden items-center gap-2 sm:flex">
           {draftDelta && (
@@ -190,7 +195,10 @@ export function StudentDetailView({ athleteId, onBack, onFineTune }: StudentDeta
           </div>
         )}
 
-        <div className="relative min-h-[50vh] flex-1 lg:min-h-0">
+        <div
+          data-tour="student-skill-graph"
+          className="relative min-h-[50vh] flex-1 lg:min-h-0"
+        >
           <SkillTreeView
             selectedId={selectedSkill}
             onSelectNode={setSelectedSkill}
@@ -203,7 +211,7 @@ export function StudentDetailView({ athleteId, onBack, onFineTune }: StudentDeta
         <aside className="flex w-full shrink-0 flex-col overflow-y-auto border-t border-border-subtle bg-surface lg:w-[340px] lg:border-l lg:border-t-0">
           <div className="space-y-4 p-4">
             {diagnostic ? (
-              <section>
+              <section data-tour="student-training-menu">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                     Training Menu (student preview)
@@ -213,11 +221,14 @@ export function StudentDetailView({ athleteId, onBack, onFineTune }: StudentDeta
                   </span>
                 </div>
                 {dashboardTasks.length === 0 ? (
-                  <p className="mt-2 text-[11px] italic text-slate-500">
+                  <p
+                    data-tour="student-task-list"
+                    className="mt-2 text-[11px] italic text-slate-500"
+                  >
                     No tasks eligible yet. Mark a conditional skill, re-run the diagnostic, or regenerate the plan.
                   </p>
                 ) : (
-                  <ul className="mt-2 space-y-2">
+                  <ul data-tour="student-task-list" className="mt-2 space-y-2">
                     {dashboardTasks.map((t) => (
                       <StudentTaskPreview key={t.id} task={t} skills={skills} />
                     ))}
@@ -225,7 +236,10 @@ export function StudentDetailView({ athleteId, onBack, onFineTune }: StudentDeta
                 )}
               </section>
             ) : (
-              <section className="border border-alpha/30 bg-alpha/10 p-3">
+              <section
+                data-tour="student-training-menu"
+                className="border border-alpha/30 bg-alpha/10 p-3"
+              >
                 <p className="text-[10px] font-bold uppercase tracking-wider text-alpha-light">
                   Awaiting diagnostic
                 </p>
@@ -360,6 +374,7 @@ export function StudentDetailView({ athleteId, onBack, onFineTune }: StudentDeta
               </p>
               <button
                 type="button"
+                data-tour="student-finetune-hint"
                 onClick={onFineTune}
                 className="mt-2 w-full border border-border-subtle bg-transparent py-2 text-[11px] font-semibold text-slate-400 transition hover:border-border-default hover:text-slate-200"
               >

@@ -103,7 +103,7 @@ export function NodeDetailPanel({
             <div className="mt-1.5 flex items-center gap-2">
               <div className="flex gap-0.5">{levelDots}</div>
               <span className={`text-xs font-semibold ${LEVEL_TEXT_COLOR[skill.level] ?? 'text-slate-400'}`}>
-                {skill.level} — {LEVEL_LABEL[skill.level] ?? 'Advanced'}
+                {skill.level} - {LEVEL_LABEL[skill.level] ?? 'Advanced'}
               </span>
             </div>
           </section>
@@ -129,7 +129,7 @@ export function NodeDetailPanel({
             </SectionLabel>
             {prereqSkills.length === 0 ? (
               <p className="mt-1.5 text-[11px] italic text-slate-600">
-                No prerequisites — root node
+                No prerequisites - root node
               </p>
             ) : (
               <ul className="mt-1.5 space-y-1">
@@ -147,7 +147,7 @@ export function NodeDetailPanel({
             </SectionLabel>
             {dependents.length === 0 ? (
               <p className="mt-1.5 text-[11px] italic text-slate-600">
-                Terminal node — no dependents
+                Terminal node - no dependents
               </p>
             ) : (
               <ul className="mt-1.5 space-y-1">

@@ -3,13 +3,13 @@
 Node.js + Fastify + TypeScript backend that owns every server-side concern
 for FrontierOS:
 
-- `/api/generate` — OpenRouter proxy with SSE streaming for graph generation.
-- `/api/bootstrap` — single hydration endpoint used by the frontend on load.
-- `/api/sport-plans/:sport` — team-plan CRUD, including server-side
+- `/api/generate` - OpenRouter proxy with SSE streaming for graph generation.
+- `/api/bootstrap` - single hydration endpoint used by the frontend on load.
+- `/api/sport-plans/:sport` - team-plan CRUD, including server-side
   re-onboarding of athletes when the plan changes.
-- `/api/athletes/:id/...` — per-athlete deltas, draft deltas, draft accept,
+- `/api/athletes/:id/...` - per-athlete deltas, draft deltas, draft accept,
   legacy full-graph storage, training-state patches, and resets.
-- `/api/import-legacy` — one-shot migration endpoint that slurps an existing
+- `/api/import-legacy` - one-shot migration endpoint that slurps an existing
   `localStorage` payload into Postgres.
 
 Persistence is Supabase Postgres accessed via Drizzle ORM (`postgres-js`
@@ -109,7 +109,7 @@ docker run --rm -p 8080:8080 \
    ```
 
    Pick a unique app name (update `app = "..."` in `fly.toml` if prompted).
-   Say **no** to creating Postgres / Redis / Tigris — Supabase owns the DB.
+   Say **no** to creating Postgres / Redis / Tigris - Supabase owns the DB.
 
 3. Set secrets:
 
@@ -134,15 +134,15 @@ docker run --rm -p 8080:8080 \
    ```
 
 6. Point Netlify at the new origin. `netlify.toml` already redirects
-   `/api/*` to `https://frontieros-api.fly.dev/api/:splat` — change that
+   `/api/*` to `https://frontieros-api.fly.dev/api/:splat` - change that
    target if your Fly app uses a different name.
 
 ## Environment variables
 
 | Name                   | Required | Default                            | Purpose                                              |
 | ---------------------- | -------- | ---------------------------------- | ---------------------------------------------------- |
-| `DATABASE_URL`         | yes      | —                                  | Supabase Postgres connection string                  |
-| `OPENROUTER_API_KEY`   | yes      | —                                  | OpenRouter API key for `/api/generate`               |
+| `DATABASE_URL`         | yes      | -                                  | Supabase Postgres connection string                  |
+| `OPENROUTER_API_KEY`   | yes      | -                                  | OpenRouter API key for `/api/generate`               |
 | `ALLOWED_ORIGINS`      | no       | `*`                                | Comma-separated CORS origins                         |
 | `DEFAULT_COACH_ID`     | no       | `00000000-0000-0000-0000-000000000001` | Coach UUID used for all writes while auth is disabled |
 | `OPENROUTER_MODEL`     | no       | `google/gemini-2.5-flash`          | Override the model slug                              |

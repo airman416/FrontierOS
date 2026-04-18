@@ -31,13 +31,24 @@ export const env = {
   NODE_ENV: optional('NODE_ENV', 'development'),
 } as const
 
+/** Merged into any non-wildcard allowlist so local frontends can call a deployed API (e.g. Fly) without extra env. */
+const LOCAL_DEV_ORIGINS = [
+  'http://localhost:8888',
+  'http://127.0.0.1:8888',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5174',
+] as const
+
 export function parseAllowedOrigins(): string[] | true {
   const raw = env.ALLOWED_ORIGINS.trim()
   if (raw === '*' || raw === '') return true
-  return raw
+  const fromEnv = raw
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
+  return [...new Set([...fromEnv, ...LOCAL_DEV_ORIGINS])]
 }
 
 /** Value for `Access-Control-Allow-Origin`, or null if this request must not receive CORS headers. */

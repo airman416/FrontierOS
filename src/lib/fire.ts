@@ -149,7 +149,7 @@ export interface RankedCandidate {
 
 /**
  * Returns a prioritized list of candidate tasks for the dashboard. The result
- * is ranked by importance but not yet sliced — callers decide how many slots
+ * is ranked by importance but not yet sliced - callers decide how many slots
  * to fill.
  */
 export function rankCandidateTasks(ctx: CandidateContext): RankedCandidate[] {

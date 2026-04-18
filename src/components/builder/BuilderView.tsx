@@ -30,7 +30,7 @@ export function useBuildSkillById() {
   return useContext(SkillByIdContext)
 }
 
-type Stage = 'form' | 'chat'
+export type BuilderStage = 'form' | 'chat'
 
 function sportLabel(sport: string): string {
   return sport.charAt(0).toUpperCase() + sport.slice(1)
@@ -38,10 +38,22 @@ function sportLabel(sport: string): string {
 
 export function BuilderView({
   target,
+  coachTourOpen,
+  sportTourTailKey,
   onBack,
+  onProceedToOnboarding,
+  onSportTourStageChange,
 }: {
   target: BuilderTarget
+  /** When the coach tour opens while already on the builder, parent re-syncs steps (stage effect may have run while the tour was closed). */
+  coachTourOpen?: boolean
+  /** When this changes, the last builder tour step may switch (Proceed vs Dashboard); parent must refresh steps. */
+  sportTourTailKey?: string | null
   onBack: () => void
+  /** Team plan only: leave the builder and start diagnostic onboarding for the next un-onboarded athlete. */
+  onProceedToOnboarding?: () => void
+  /** Team plan only: notify parent when builder stage changes so the coach tour can swap steps. */
+  onSportTourStageChange?: (stage: BuilderStage) => void
 }) {
   const isSportMode = target.kind === 'sport'
   const athleteId = target.kind === 'athlete' ? target.athleteId : null
@@ -115,7 +127,15 @@ export function BuilderView({
     ? existingSportPlan?.requirements ?? ''
     : workingDelta?.requirements ?? ''
 
-  const [stage, setStage] = useState<Stage>(initialGraph ? 'chat' : 'form')
+  const [stage, setStage] = useState<BuilderStage>(initialGraph ? 'chat' : 'form')
+
+  const sportTourNotifyRef = useRef(onSportTourStageChange)
+  sportTourNotifyRef.current = onSportTourStageChange
+
+  useEffect(() => {
+    if (!isSportMode || !sportTourNotifyRef.current) return
+    sportTourNotifyRef.current(stage)
+  }, [isSportMode, stage, coachTourOpen, sportTourTailKey])
   const [requirements, setRequirements] = useState(initialRequirements)
   const [messages, setMessages] = useState<ChatMessage[]>(initialHistory)
   const [isLoading, setIsLoading] = useState(false)
@@ -245,8 +265,8 @@ export function BuilderView({
                 const n = previewGraph?.skills.length ?? 0
                 setStreamingStatus(
                   n > 0
-                    ? `Streaming graph… ${n} skill${n === 1 ? '' : 's'} in preview`
-                    : 'Streaming graph…',
+                    ? `Map building: ${n} skill${n === 1 ? '' : 's'} in the draft so far`
+                    : 'Stitching your skill path together…',
                 )
               } else {
                 setStreamingStatus(null)
@@ -452,6 +472,7 @@ export function BuilderView({
               </div>
               <button
                 type="button"
+                data-tour="builder-dashboard-back"
                 onClick={onBack}
                 className="shrink-0 border border-border-subtle bg-surface-raised px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-border-default hover:text-white"
               >
@@ -462,7 +483,10 @@ export function BuilderView({
         </header>
 
         <div className="mx-auto max-w-xl px-4 py-8 md:px-6">
-          <div className="border border-border-subtle bg-surface-raised p-6">
+          <div
+            data-tour="builder-form-card"
+            className="border border-border-subtle bg-surface-raised p-6"
+          >
             <h2 className="text-lg font-bold text-white">
               {isSportMode ? 'Set your team-wide preferences' : 'Describe the athlete adjustments'}
             </h2>
@@ -510,6 +534,7 @@ export function BuilderView({
         <header className="flex shrink-0 items-center gap-3 border-b border-border-subtle bg-surface px-3 py-2.5 md:gap-4 md:px-4">
           <button
             type="button"
+            data-tour="builder-dashboard-back"
             onClick={onBack}
             className="shrink-0 border border-border-subtle bg-surface-raised px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-border-default hover:text-white"
           >
@@ -587,6 +612,21 @@ export function BuilderView({
               Reset to Team Plan
             </button>
           )}
+          {isSportMode &&
+            onProceedToOnboarding &&
+            currentGraph &&
+            currentGraph.skills.length > 0 &&
+            !isLoading && (
+              <button
+                type="button"
+                data-tour="builder-proceed-onboarding"
+                onClick={onProceedToOnboarding}
+                title="Save is automatic — go to the dashboard and start the onboarding diagnostic for the next athlete who still needs it"
+                className="shrink-0 border border-alpha/40 bg-alpha/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-alpha-light transition hover:border-alpha/60 hover:bg-alpha/20 hover:text-white"
+              >
+                Proceed to onboarding
+              </button>
+            )}
           {isSportMode && existingSportPlan && (
             <button
               type="button"
@@ -609,7 +649,10 @@ export function BuilderView({
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <div className="flex h-[40vh] w-full shrink-0 flex-col border-b border-border-subtle lg:h-auto lg:w-[380px] lg:border-b-0 lg:border-r">
+          <div
+            data-tour="builder-chat-panel"
+            className="flex h-[40vh] w-full shrink-0 flex-col border-b border-border-subtle lg:h-auto lg:w-[380px] lg:border-b-0 lg:border-r"
+          >
             <ChatPanel
               messages={messages}
               onSend={handleChatSend}
@@ -624,7 +667,7 @@ export function BuilderView({
             />
           </div>
 
-          <div className="relative min-h-0 flex-1">
+          <div data-tour="builder-graph-preview" className="relative min-h-0 flex-1">
             {currentGraph && currentGraph.skills.length > 0 ? (
               <GraphPreview
                 skills={currentGraph.skills}
@@ -641,8 +684,10 @@ export function BuilderView({
                     <span className="animate-pulse bg-alpha/10 [animation-delay:200ms]" />
                     <span className="animate-pulse bg-alpha/20 [animation-delay:300ms]" />
                   </div>
-                  <p className="mt-3 text-xs text-slate-500">
-                    {isLoading ? 'Generating your knowledge graph...' : 'Graph will appear here'}
+                  <p className="mt-3 max-w-[240px] text-xs leading-snug text-slate-400">
+                    {isLoading
+                      ? 'Your skill path is building right now. This can take a moment.'
+                      : 'Graph will appear here'}
                   </p>
                 </div>
               </div>
