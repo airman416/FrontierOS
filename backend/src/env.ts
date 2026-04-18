@@ -19,6 +19,12 @@ export const env = {
 
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? '',
   OPENROUTER_MODEL: optional('OPENROUTER_MODEL', 'google/gemini-2.5-flash'),
+  /**
+   * Smaller/faster model for the escalation probe endpoint - the output
+   * is ~50 tokens so we want a model with low TTFT, not a heavy graph
+   * generator. Falls back to OPENROUTER_MODEL if not set.
+   */
+  OPENROUTER_PROBE_MODEL: process.env.OPENROUTER_PROBE_MODEL?.trim() || 'google/gemini-2.5-flash-lite',
   HTTP_REFERER: optional('HTTP_REFERER', 'https://frontier-os.netlify.app'),
   OPENROUTER_APP_TITLE: optional('OPENROUTER_APP_TITLE', 'Frontier OS'),
 

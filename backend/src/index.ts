@@ -7,6 +7,7 @@ import { registerSportPlanRoutes } from './routes/sportPlans.js'
 import { registerAthleteGraphRoutes } from './routes/athleteGraphs.js'
 import { registerAthleteStateRoutes } from './routes/athleteState.js'
 import { registerImportLegacyRoutes } from './routes/importLegacy.js'
+import { registerDiagnosticProbeRoutes } from './routes/diagnosticProbe.js'
 
 const app = Fastify({
   logger: { level: env.LOG_LEVEL },
@@ -29,6 +30,7 @@ await registerSportPlanRoutes(app)
 await registerAthleteGraphRoutes(app)
 await registerAthleteStateRoutes(app)
 await registerImportLegacyRoutes(app)
+await registerDiagnosticProbeRoutes(app)
 
 try {
   await app.listen({ host: '0.0.0.0', port: env.PORT })

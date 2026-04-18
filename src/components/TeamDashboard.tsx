@@ -757,11 +757,16 @@ export function TeamDashboard({
   const firstUnOnboardedId = unOnboardedAthletes[0]?.id ?? null
 
   return (
-    <div className="min-h-[100dvh] bg-[#0a0b10]">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-[#0a0b10]">
       {/* Header */}
       <header className="border-b border-border-subtle bg-surface px-4 pb-0 pt-5 md:px-6">
         <div className="mx-auto max-w-6xl">
-          <div className="flex items-start justify-between gap-4">
+          {/*
+           * Mobile: stack title above the action cluster so the title block keeps
+           * full width (no more "Texas / Sports / Academy" one-word-per-line).
+           * Desktop: side-by-side with the action cluster shrink-0 on the right.
+           */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div data-tour="dashboard-title-block" className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-widest text-alpha-light">
                 Frontier OS
@@ -770,9 +775,11 @@ export function TeamDashboard({
                 Texas Sports Academy
               </h1>
               <p className="mt-1 text-xs text-slate-500">
-                {getSportLabel(selectedSport)} · {filteredCount} athletes
+                <span className="whitespace-nowrap">
+                  {getSportLabel(selectedSport)} · {filteredCount} athletes
+                </span>
                 {currentSportPlan && (
-                  <span className="ml-2 text-slate-600">
+                  <span className="ml-2 whitespace-nowrap text-slate-600">
                     · Team plan updated {formatRelativeTime(currentSportPlan.updatedAt)}
                   </span>
                 )}
@@ -780,14 +787,18 @@ export function TeamDashboard({
                   <button
                     type="button"
                     onClick={() => onOnboardAthlete(firstUnOnboardedId)}
-                    className="ml-2 border border-alpha/40 bg-alpha/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-alpha-light transition hover:bg-alpha/20"
+                    className="ml-2 inline-block whitespace-nowrap border border-alpha/40 bg-alpha/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-alpha-light transition hover:bg-alpha/20"
                   >
                     {unOnboardedAthletes.length} un-onboarded · Start →
                   </button>
                 )}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            {/*
+             * Allow the action cluster to wrap on narrow widths instead of
+             * forcing the page to scroll horizontally.
+             */}
+            <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">
               <button
                 type="button"
                 onClick={() => onGenerateTeamPlan(selectedSport)}
@@ -846,7 +857,7 @@ export function TeamDashboard({
           </div>
 
           {/* Sport filter + view tabs */}
-          <div className="mt-4 flex items-end justify-between gap-4">
+          <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
             <div data-tour="dashboard-tabs" className="flex gap-1">
               <TabBtn active={tab === 'roster'} onClick={() => setTab('roster')}>
                 Roster

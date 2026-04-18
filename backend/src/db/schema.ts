@@ -132,9 +132,41 @@ export const athleteTrainingState = pgTable('athlete_training_state', {
     .$type<Record<string, { stability: number; lastReviewedAt: number; dueAt: number }>>()
     .notNull()
     .default({}),
+  /**
+   * Per-task snapshot of the training state captured immediately *before* the
+   * task was completed. Keyed by task id. Used by `uncompleteTask` to roll
+   * back mastery / XP / review state when the athlete unchecks a finished
+   * task. Snapshots are dropped when the matching task ID is cleared from the
+   * dashboard.
+   */
+  taskSnapshots: jsonb('task_snapshots')
+    .$type<
+      Record<
+        string,
+        {
+          mastered: string[]
+          skillProgress: Record<string, number>
+          conditional: Record<string, { confidence: number; successes: number }>
+          reviewState: Record<
+            string,
+            { stability: number; lastReviewedAt: number; dueAt: number }
+          >
+        }
+      >
+    >()
+    .notNull()
+    .default({}),
   diagnostic: jsonb('diagnostic').$type<{
     completedAt: number
     log: Array<{ skillId: string; verdict: string }>
+    escalations?: Array<{
+      skillId: string
+      prompt: string
+      rationale?: string
+      verdict: string
+      note?: string
+      at: number
+    }>
   } | null>(),
   dashboard: jsonb('dashboard').$type<{
     taskIds: string[]

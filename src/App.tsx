@@ -9,7 +9,7 @@ import { ATHLETE_BY_ID } from './data/athletes'
 import {
   builderChatTourSteps,
   builderFormTourSteps,
-  dashboardFirstStep,
+  dashboardTourSteps,
   diagnosticSummaryTrainingMenuStep,
   ROLE_TOGGLE_TOUR_SELECTOR,
   studentDetailTourSteps,
@@ -80,7 +80,7 @@ export default function App() {
   // Provider wraps coach and athlete views so the tour can continue after switching roles (student-detail walkthrough).
   return (
     <TourProvider
-      steps={[dashboardFirstStep(false)]}
+      steps={dashboardTourSteps(false)}
       styles={coachTourStyles}
       components={{ Close: TourCloseButton, Content: TourContentScroll }}
       rtl={false}
@@ -221,7 +221,7 @@ function CoachApp() {
 
   useEffect(() => {
     if (!pendingTourAfterIntro || welcomeVisible) return
-    setSteps?.([dashboardFirstStep(!!sportPlans[selectedSport])])
+    setSteps?.(dashboardTourSteps(!!sportPlans[selectedSport]))
     setCurrentStep?.(0)
     setIsOpen(true)
     setPendingTourAfterIntro(false)
@@ -380,7 +380,7 @@ function CoachApp() {
     setFullCoachTourFromWelcome(false)
     pendingStudentDetailTourRef.current = false
     retainTourOnStudentDetailRef.current = false
-    setSteps?.([dashboardFirstStep(!!sportPlans[selectedSport])])
+    setSteps?.(dashboardTourSteps(!!sportPlans[selectedSport]))
     setCurrentStep?.(0)
     setIsOpen(true)
   }, [sportPlans, selectedSport, setSteps, setCurrentStep, setIsOpen])
@@ -490,7 +490,7 @@ function DiagnosticChainPrompt({
         </div>
         {tourSingleStudent ? (
           <p className="mt-3 text-[11px] leading-snug text-slate-400">
-            Continue the tour: open their training menu below. (We&apos;ll do one athlete in this
+            Continue the tour: open their training menu below. (I&apos;ll do one athlete in this
             walkthrough.)
           </p>
         ) : null}
@@ -570,23 +570,25 @@ function WelcomeModal({
             Welcome
           </p>
 
+          <p className="mt-3 text-sm leading-snug text-slate-300">
+            Frontier OS is a coaching platform that turns your team's development plan into an interactive skill tree. It automatically builds personalized daily training menus for each athlete based on what they've mastered and what they need to learn next.
+          </p>
+
           <section className="mt-5 space-y-4 text-sm leading-snug text-slate-400">
             <div>
               <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-300">
-                Skills connect like a ladder
+                A clear path to mastery
               </h2>
               <p className="mt-1.5">
-                Easy skills sit under harder ones. Hard games still give credit for the basics. You
-                can see what each player still needs.
+                Foundational skills unlock advanced techniques. The skill tree ensures athletes build a solid base before moving on, giving you a clear picture of exactly where each player stands.
               </p>
             </div>
             <div>
               <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-300">
-                Why players improve faster
+                Smarter daily practice
               </h2>
               <p className="mt-1.5">
-                Players move up only after they show they earned it. Practice tracks how tired they
-                are. Mixed drills beat racing down a plain checklist.
+                Instead of a one-size-fits-all checklist, athletes get a dynamic training menu. It automatically mixes new challenges with spaced reviews of past skills to ensure long-term retention.
               </p>
             </div>
           </section>
@@ -608,8 +610,7 @@ function WelcomeModal({
           </section>
 
           <p className="mt-5 text-xs text-slate-500">
-            Start tour walks the team plan, one athlete check-in, then their training menu and
-            player view (~12 min). Skip anytime with the tour arrows or X.
+            The tour will walk you through the basics of setting up your team and what your athletes will see (~12 min). You can skip anytime using the tour arrows or the X.
           </p>
         </div>
 

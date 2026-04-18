@@ -48,6 +48,13 @@ const conditionalStateSchema = z.object({
   successes: z.number(),
 })
 
+const taskSnapshotSchema = z.object({
+  mastered: z.array(z.string()),
+  skillProgress: z.record(z.string(), z.number()),
+  conditional: z.record(z.string(), conditionalStateSchema),
+  reviewState: z.record(z.string(), reviewSkillStateSchema),
+})
+
 const trainingStateSchema = z.object({
   athleteId: z.string(),
   mastery: z.array(z.string()).optional(),
@@ -56,10 +63,25 @@ const trainingStateSchema = z.object({
   completedTasks: z.array(z.string()).optional(),
   conditional: z.record(z.string(), conditionalStateSchema).optional(),
   reviewState: z.record(z.string(), reviewSkillStateSchema).optional(),
+  taskSnapshots: z.record(z.string(), taskSnapshotSchema).optional(),
   diagnostic: z
     .object({
       completedAt: z.number(),
       log: z.array(z.object({ skillId: z.string(), verdict: z.string() }).passthrough()),
+      escalations: z
+        .array(
+          z
+            .object({
+              skillId: z.string(),
+              prompt: z.string(),
+              rationale: z.string().optional(),
+              verdict: z.string(),
+              note: z.string().optional(),
+              at: z.number(),
+            })
+            .passthrough(),
+        )
+        .optional(),
     })
     .nullable()
     .optional(),
@@ -188,6 +210,7 @@ export async function registerImportLegacyRoutes(app: FastifyInstance): Promise<
           completedTasks: t.completedTasks ?? [],
           conditional: t.conditional ?? {},
           reviewState: t.reviewState ?? {},
+          taskSnapshots: t.taskSnapshots ?? {},
           diagnostic: t.diagnostic ?? null,
           dashboard: t.dashboard ?? null,
           reonboardStatus: t.reonboardStatus ?? null,
@@ -202,6 +225,7 @@ export async function registerImportLegacyRoutes(app: FastifyInstance): Promise<
             completedTasks: t.completedTasks ?? [],
             conditional: t.conditional ?? {},
             reviewState: t.reviewState ?? {},
+            taskSnapshots: t.taskSnapshots ?? {},
             diagnostic: t.diagnostic ?? null,
             dashboard: t.dashboard ?? null,
             reonboardStatus: t.reonboardStatus ?? null,

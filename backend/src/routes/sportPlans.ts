@@ -114,10 +114,12 @@ export async function registerSportPlanRoutes(app: FastifyInstance): Promise<voi
             }
             for (const [id, v] of Object.entries(seed.conditional)) {
               conditional[id] = { confidence: v.confidence, successes: 0 }
+              // Match the frontend: conditional skills are due immediately
+              // so the dashboard never starts empty after a re-onboard.
               reviewState[id] = {
                 stability: 0.5,
                 lastReviewedAt: nowMs,
-                dueAt: nowMs + 0.5 * BASE_INTERVAL_MS,
+                dueAt: nowMs,
               }
             }
 
@@ -136,6 +138,7 @@ export async function registerSportPlanRoutes(app: FastifyInstance): Promise<voi
                 reviewState,
                 skillProgress: {},
                 completedTasks: [],
+                taskSnapshots: {},
                 reonboardStatus,
                 dashboard: null,
                 updatedAt: now,
@@ -153,6 +156,7 @@ export async function registerSportPlanRoutes(app: FastifyInstance): Promise<voi
                 completedTasks: u.completedTasks ?? [],
                 conditional: u.conditional ?? {},
                 reviewState: u.reviewState ?? {},
+                taskSnapshots: u.taskSnapshots ?? {},
                 diagnostic: u.diagnostic ?? null,
                 dashboard: u.dashboard ?? null,
                 reonboardStatus: u.reonboardStatus ?? null,

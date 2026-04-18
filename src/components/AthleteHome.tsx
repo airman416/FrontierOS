@@ -62,6 +62,11 @@ export function AthleteHome() {
   const getAthleteDiagnostic = useFrontierStore((s) => s.getAthleteDiagnostic)
   const skillProgress = useFrontierStore((s) => s.athleteSkillProgress[selectedAthleteId])
   const completeTask = useFrontierStore((s) => s.completeTask)
+  const uncompleteTask = useFrontierStore((s) => s.uncompleteTask)
+  const clearCompletedTasks = useFrontierStore((s) => s.clearCompletedTasks)
+  const completedTaskIds = useFrontierStore(
+    (s) => s.athleteCompletedTasks[selectedAthleteId],
+  )
   const reviewState = useFrontierStore((s) => s.athleteReviewState[selectedAthleteId])
   const dashboardEpoch = useFrontierStore(
     (s) => s.athleteDashboard[selectedAthleteId]?.updatedAt ?? 0,
@@ -100,6 +105,22 @@ export function AthleteHome() {
 
   const [justCompleted, setJustCompleted] = useState<Set<string>>(new Set())
 
+  const completedSet = completedTaskIds ?? new Set<string>()
+
+  // Render active rows first, then completed rows beneath them so the checked
+  // items collect at the bottom of the list (without disappearing).
+  const sortedDashboardTasks = useMemo(() => {
+    if (completedSet.size === 0) return dashboardTasks
+    const active: TodayTask[] = []
+    const done: TodayTask[] = []
+    for (const t of dashboardTasks) {
+      if (completedSet.has(t.id)) done.push(t)
+      else active.push(t)
+    }
+    return [...active, ...done]
+  }, [dashboardTasks, completedSet])
+  const completedVisibleCount = sortedDashboardTasks.filter((t) => completedSet.has(t.id)).length
+
   if (!athlete) return null
 
   const masteredSkills = sportSkills.filter((s) => mastered.has(s.id))
@@ -123,13 +144,18 @@ export function AthleteHome() {
     return Math.max(max, imp)
   }, 0)
 
-  const handleCheck = (taskId: string) => {
+  const handleToggle = (taskId: string) => {
+    if (completedSet.has(taskId)) {
+      uncompleteTask(selectedAthleteId, taskId)
+      return
+    }
     setJustCompleted((prev) => {
       const next = new Set(prev)
       next.add(taskId)
       return next
     })
-    // Small delay so the checkmark animation is visible before the row gets replaced.
+    // Small delay so the checkmark animation is visible before the row settles
+    // into its "done" state.
     window.setTimeout(() => {
       completeTask(selectedAthleteId, taskId)
       setJustCompleted((prev) => {
@@ -138,6 +164,10 @@ export function AthleteHome() {
         return next
       })
     }, 260)
+  }
+
+  const handleClearCompleted = () => {
+    clearCompletedTasks(selectedAthleteId)
   }
 
   return (
@@ -260,16 +290,28 @@ export function AthleteHome() {
         {/* Training Menu */}
         {diagnostic && (
           <section className="mt-6">
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline justify-between gap-3">
               <h2 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Your Training Menu
               </h2>
-              <span className="text-[10px] tabular-nums text-slate-600">
-                {dashboardTasks.length} item{dashboardTasks.length === 1 ? '' : 's'}
-              </span>
+              <div className="flex items-center gap-2">
+                {completedVisibleCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearCompleted}
+                    className="border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300 transition hover:border-emerald-400/60 hover:bg-emerald-500/20 hover:text-emerald-200"
+                    aria-label={`Clear ${completedVisibleCount} completed task${completedVisibleCount === 1 ? '' : 's'}`}
+                  >
+                    Clear {completedVisibleCount} done
+                  </button>
+                )}
+                <span className="text-[10px] tabular-nums text-slate-600">
+                  {dashboardTasks.length} item{dashboardTasks.length === 1 ? '' : 's'}
+                </span>
+              </div>
             </div>
             <p className="mt-1 text-[11px] leading-snug text-slate-500">
-              Tasks stay here until you finish them. Check one off and the next best task drops in.
+              Check one off and the next best task drops in. Completed tasks stay below in green - tap them again to undo, or hit Clear when you're ready.
             </p>
 
             {!supportsAdaptive && (
@@ -284,7 +326,8 @@ export function AthleteHome() {
                   No eligible tasks - your coach may need to regenerate your plan.
                 </li>
               )}
-              {dashboardTasks.map((t) => {
+              {sortedDashboardTasks.map((t) => {
+                const isCompleted = completedSet.has(t.id)
                 const isCompleting = justCompleted.has(t.id)
                 return (
                   <TrainingMenuRow
@@ -297,8 +340,9 @@ export function AthleteHome() {
                     postreqClosure={postreqClosure}
                     skillProgress={skillProgressMap}
                     mastered={mastered}
-                    checked={isCompleting}
-                    onCheck={() => handleCheck(t.id)}
+                    checked={isCompleted || isCompleting}
+                    completed={isCompleted}
+                    onToggle={() => handleToggle(t.id)}
                   />
                 )
               })}
@@ -339,7 +383,8 @@ function TrainingMenuRow({
   skillProgress,
   mastered,
   checked,
-  onCheck,
+  completed,
+  onToggle,
 }: {
   task: TodayTask
   skillById: Record<string, SkillDef>
@@ -350,7 +395,8 @@ function TrainingMenuRow({
   skillProgress: Record<string, number>
   mastered: Set<string>
   checked: boolean
-  onCheck: () => void
+  completed: boolean
+  onToggle: () => void
 }) {
   const skill = task.skillId ? skillById[task.skillId] : null
   const imp = importance({ task, prereqClosure, postreqClosure, due })
@@ -364,17 +410,22 @@ function TrainingMenuRow({
     : null
   const xp = task.xp ?? 0
 
+  const containerClasses = completed
+    ? 'flex items-start gap-3 border border-emerald-500/30 bg-emerald-500/[0.06] p-3'
+    : 'flex items-start gap-3 border border-border-subtle bg-surface-raised p-3'
+
   return (
-    <li className="flex items-start gap-3 border border-border-subtle bg-surface-raised p-3">
+    <li className={containerClasses}>
       <button
         type="button"
-        onClick={onCheck}
+        onClick={onToggle}
         className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center border transition ${
           checked
-            ? 'border-emerald-500 bg-emerald-500 text-white'
+            ? 'border-emerald-500 bg-emerald-500 text-white hover:border-emerald-400 hover:bg-emerald-400'
             : 'border-slate-600 bg-transparent hover:border-emerald-400'
         }`}
-        aria-label={`Mark ${task.shortLabel} done`}
+        aria-label={completed ? `Uncheck ${task.shortLabel}` : `Mark ${task.shortLabel} done`}
+        aria-pressed={completed}
       >
         {checked && (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -385,53 +436,76 @@ function TrainingMenuRow({
       <div className="min-w-0 flex-1">
         <p
           className={`text-sm font-semibold ${
-            checked ? 'text-slate-600 line-through' : 'text-white'
+            completed
+              ? 'text-emerald-300/90 line-through decoration-emerald-500/50'
+              : 'text-white'
           }`}
         >
           {task.title}
         </p>
         {task.rationale && (
-          <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+          <p
+            className={`mt-0.5 text-[11px] leading-snug ${
+              completed ? 'text-emerald-300/50' : 'text-slate-500'
+            }`}
+          >
             {task.rationale}
           </p>
         )}
         {!task.rationale && task.detail && (
-          <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+          <p
+            className={`mt-0.5 text-[11px] leading-snug ${
+              completed ? 'text-emerald-300/50' : 'text-slate-500'
+            }`}
+          >
             {task.detail}
           </p>
         )}
-        <div className="mt-2 flex flex-wrap items-center gap-1">
-          {skill && (
-            <span className="border border-border-subtle bg-surface-elevated px-1.5 py-0.5 text-[10px] font-medium text-slate-300">
-              → {skill.label}
+        {completed ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            <span className="border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+              ✓ Done
             </span>
-          )}
-          {xp > 0 && xpPct !== null && (
-            <span className="border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300">
-              +{xp}% toward {skill?.label ?? 'skill'}
-            </span>
-          )}
-          {xp > 0 && xpPct === null && (
-            <span className="border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
-              Review
-            </span>
-          )}
-          {xp > 0 && (
-            <span className="border border-border-subtle bg-surface-elevated px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-              ≈{xp} min
-            </span>
-          )}
-          {knocked >= 2 && (
-            <span className="border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
-              Knocks out {knocked} review{knocked === 1 ? '' : 's'}
-            </span>
-          )}
-          {isHighPriority && (
-            <span className="border border-alpha/40 bg-alpha/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-alpha-light">
-              ⚡ High priority
-            </span>
-          )}
-        </div>
+            {skill && (
+              <span className="border border-emerald-500/20 bg-emerald-500/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-emerald-300/70">
+                → {skill.label}
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            {skill && (
+              <span className="border border-border-subtle bg-surface-elevated px-1.5 py-0.5 text-[10px] font-medium text-slate-300">
+                → {skill.label}
+              </span>
+            )}
+            {xp > 0 && xpPct !== null && (
+              <span className="border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300">
+                +{xp}% toward {skill?.label ?? 'skill'}
+              </span>
+            )}
+            {xp > 0 && xpPct === null && (
+              <span className="border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+                Review
+              </span>
+            )}
+            {xp > 0 && (
+              <span className="border border-border-subtle bg-surface-elevated px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+                ≈{xp} min
+              </span>
+            )}
+            {knocked >= 2 && (
+              <span className="border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                Knocks out {knocked} review{knocked === 1 ? '' : 's'}
+              </span>
+            )}
+            {isHighPriority && (
+              <span className="border border-alpha/40 bg-alpha/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-alpha-light">
+                ⚡ High priority
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </li>
   )

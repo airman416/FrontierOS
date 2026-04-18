@@ -102,6 +102,7 @@ export async function registerBootstrapRoutes(app: FastifyInstance): Promise<voi
         completedTasks: t.completedTasks ?? [],
         conditional: t.conditional ?? {},
         reviewState: t.reviewState ?? {},
+        taskSnapshots: t.taskSnapshots ?? {},
         diagnostic: t.diagnostic ?? null,
         dashboard: t.dashboard ?? null,
         reonboardStatus: t.reonboardStatus ?? null,

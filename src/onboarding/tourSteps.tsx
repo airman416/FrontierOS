@@ -44,25 +44,29 @@ function popoverBelowHighlightedTarget(
   return [x, y]
 }
 
-export function dashboardFirstStep(hasExistingTeamPlan: boolean): StepType {
+export function dashboardTourSteps(hasExistingTeamPlan: boolean): StepType[] {
   if (hasExistingTeamPlan) {
-    return {
-      selector: '[data-tour="team-plan-cta"]',
+    return [
+      {
+        selector: '[data-tour="team-plan-cta"]',
+        content:
+          'Tap Generate Team Plan or Edit Team Plan. The tour picks up again on the next screen.',
+        position: 'bottom',
+        disableActions: true,
+        stepInteraction: true,
+      },
+    ]
+  }
+  return [
+    {
+      selector: '[data-tour="start-here-banner"]',
       content:
-        'Tap Generate Team Plan or Edit Team Plan. The tour picks up again on the next screen.',
+        'Tap the big Generate Team Plan button. The tour keeps going on the next screen after you tap.',
       position: 'bottom',
       disableActions: true,
       stepInteraction: true,
-    }
-  }
-  return {
-    selector: '[data-tour="start-here-banner"]',
-    content:
-      'Tap the big Generate Team Plan button. The tour keeps going on the next screen after you tap.',
-    position: 'bottom',
-    disableActions: true,
-    stepInteraction: true,
-  }
+    },
+  ]
 }
 
 /** Team plan builder: form stage (one spotlight so the mask does not cover Generate). */
@@ -176,7 +180,7 @@ export const studentDetailTourSteps: StepType[] = [
   {
     selector: ATHLETE_HOME_PREVIEW_SELECTOR,
     content:
-      'What players see here:\n• Check off today\'s work and see whether they\'re on track.\n• Dip in between classes and practice: short visits, not a long homework portal.\n\nOn our roadmap:\n• Short video cues from coaches.\n• Wearable signals so effort is tracked fairly.\n• Small teammate groups so people hold each other accountable: tasks get marked honestly, not half-checked just to clear the list.',
+      "What players see here is a simple checklist to mark off today's work and stay on track.\n\nIn the future, I plan to upgrade this list with:\n• Food and sleep tracking to automatically check off recovery tasks.\n• Short video cues from coaches.\n• Wearable signals so effort is tracked fairly.\n• Small teammate groups so people hold each other accountable: tasks get marked honestly, not half-checked just to clear the list.",
     /** Large highlight; center keeps the card readable on small screens. */
     position: 'center',
     disableActions: false,

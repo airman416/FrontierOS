@@ -16,6 +16,9 @@ export interface DiagnosticEntry {
    * - 'inferred-up': never probed; all direct prereqs known → inferred known
    * - 'inferred-down': never probed; a direct prereq not-known → inferred not-known
    * - 'inferred-mixed': never probed; prereq coverage is mixed → conditional
+   * - 'escalation': coach graded an AI-generated harder probe for this skill
+   * - 'escalation-propagated-up': pass on an escalation implied prereq known
+   * - 'escalation-propagated-down': fail on an escalation implied postreq not-known
    */
   source:
     | 'probed'
@@ -24,6 +27,23 @@ export interface DiagnosticEntry {
     | 'inferred-up'
     | 'inferred-down'
     | 'inferred-mixed'
+    | 'escalation'
+    | 'escalation-propagated-up'
+    | 'escalation-propagated-down'
+}
+
+/**
+ * One AI-generated harder probe that the coach has graded. Kept in a
+ * parallel log on `DiagnosticState` so the summary panel and downstream
+ * persistence can replay the escalation chain branch-by-branch.
+ */
+export interface EscalationEntry {
+  skillId: string
+  prompt: string
+  rationale?: string
+  verdict: DiagnosticVerdict
+  note?: string
+  at: number
 }
 
 export interface DiagnosticState {
@@ -31,12 +51,14 @@ export interface DiagnosticState {
   log: DiagnosticEntry[]
   /** skillId → current derived status. */
   status: Record<string, DiagnosticStatus>
+  /** Ordered log of AI-generated harder probes the coach graded. */
+  escalations: EscalationEntry[]
 }
 
 export function createInitialDiagnosticState(skills: SkillDef[]): DiagnosticState {
   const status: Record<string, DiagnosticStatus> = {}
   for (const s of skills) status[s.id] = 'unknown'
-  return { log: [], status }
+  return { log: [], status, escalations: [] }
 }
 
 function buildPrereqClosure(skills: SkillDef[]): Record<string, Set<string>> {
@@ -215,7 +237,7 @@ export function applyVerdict(
     }
   }
 
-  return { log, status }
+  return { log, status, escalations: state.escalations }
 }
 
 export interface DiagnosticCommitResult {
@@ -295,7 +317,7 @@ export function runInferencePass(
     }
   }
 
-  return { log, status }
+  return { log, status, escalations: state.escalations }
 }
 
 /**
@@ -326,10 +348,13 @@ export function commitDiagnostic(
     } else if (st === 'conditional') {
       mastered.push(id)
       conditional[id] = { confidence: 0.5, successes: 0 }
+      // Surface conditional skills as due-now review tasks so a freshly
+      // onboarded athlete always sees something on day one - even if a
+      // branch ended at "partial" without a fail.
       reviewState[id] = {
         stability: 0.5,
         lastReviewedAt: now,
-        dueAt: now + 0.5 * baseIntervalMs,
+        dueAt: now,
       }
     }
   }
@@ -341,6 +366,150 @@ export function commitDiagnostic(
     log: inferred.log,
     finalStatus: inferred.status,
   }
+}
+
+/* ─── Escalation phase ───────────────────────────────────────────── */
+
+/**
+ * Top skills in the resolved graph (no postreqs depend on them). These
+ * are the "branch tips" we want to seal with a fail. Cached per engine.
+ */
+export function topSkills(engine: DiagnosticEngine): SkillDef[] {
+  const tops: SkillDef[] = []
+  for (const s of engine.skills) {
+    const post = engine.postreqClosure[s.id]
+    if (!post || post.size === 0) tops.push(s)
+  }
+  return tops
+}
+
+/** Membership of a branch: the top skill and its entire prereq closure. */
+function branchSkillIds(engine: DiagnosticEngine, topId: string): Set<string> {
+  const ids = new Set<string>()
+  ids.add(topId)
+  for (const p of engine.prereqClosure[topId] ?? []) ids.add(p)
+  return ids
+}
+
+/**
+ * Find every top-level branch that has no `not-known` skill anywhere in
+ * its lineage (probed or inferred). These are the branches that need an
+ * escalation pass: every probe came back pass/partial, so we never
+ * actually found the athlete's ceiling on this thread.
+ */
+export function findUnsealedBranchTops(
+  engine: DiagnosticEngine,
+  state: DiagnosticState,
+): SkillDef[] {
+  const tops = topSkills(engine)
+  const unsealed: SkillDef[] = []
+  for (const top of tops) {
+    const ids = branchSkillIds(engine, top.id)
+    let sealed = false
+    for (const id of ids) {
+      if (state.status[id] === 'not-known') {
+        sealed = true
+        break
+      }
+    }
+    if (!sealed) unsealed.push(top)
+  }
+  return unsealed
+}
+
+/**
+ * Pick the next skill in this branch to escalate against. Strategy:
+ * walk the branch from the highest-level skill downward and pick the
+ * highest-level skill that:
+ *   - has not yet been graded `not-known` (otherwise the branch is sealed),
+ *   - has not yet had an escalation probe applied this run (no entry in
+ *     `state.escalations` for this skill),
+ *   - has at least one prereq in this branch graded `known` or `conditional`
+ *     (so we know we're climbing past something the athlete already showed),
+ *     OR is the branch top itself.
+ *
+ * Returns null when the branch is exhausted - i.e. we've already escalated
+ * against the top skill and got pass/partial. Caller should accept the
+ * branch as the ceiling and move on.
+ */
+export function nextEscalationTarget(
+  engine: DiagnosticEngine,
+  state: DiagnosticState,
+  branchTopId: string,
+): SkillDef | null {
+  const top = engine.skillById[branchTopId]
+  if (!top) return null
+  const branchIds = branchSkillIds(engine, branchTopId)
+
+  const escalated = new Set(state.escalations.map((e) => e.skillId))
+
+  const branchSkills = [...branchIds]
+    .map((id) => engine.skillById[id])
+    .filter((s): s is SkillDef => !!s)
+    .sort((a, b) => b.level - a.level)
+
+  for (const candidate of branchSkills) {
+    if (state.status[candidate.id] === 'not-known') return null
+    if (escalated.has(candidate.id)) continue
+    if (candidate.id === branchTopId) return candidate
+    const prereqsHaveSignal = candidate.prereqs.some((pid) => {
+      const st = state.status[pid]
+      return st === 'known' || st === 'conditional'
+    })
+    if (prereqsHaveSignal) return candidate
+  }
+
+  return null
+}
+
+/**
+ * Apply a coach verdict on an AI-generated harder probe. Mirrors
+ * `applyVerdict` semantics but logs into the parallel `escalations` array
+ * AND propagates through the same prereq/postreq closures so the rest of
+ * the engine (inference pass, dashboard fill) sees consistent state.
+ */
+export function applyEscalationVerdict(
+  engine: DiagnosticEngine,
+  state: DiagnosticState,
+  skillId: string,
+  verdict: DiagnosticVerdict,
+  prompt: string,
+  rationale?: string,
+  note?: string,
+  at: number = Date.now(),
+): DiagnosticState {
+  const status = { ...state.status }
+  const log = [...state.log]
+  const escalations = [...state.escalations]
+
+  const targetStatus: DiagnosticStatus =
+    verdict === 'pass' ? 'known' : verdict === 'fail' ? 'not-known' : 'conditional'
+  status[skillId] = targetStatus
+
+  escalations.push({ skillId, prompt, rationale, verdict, note, at })
+  log.push({ skillId, verdict, note, at, source: 'escalation' })
+
+  if (verdict === 'pass') {
+    const prereqs = engine.prereqClosure[skillId] ?? new Set()
+    for (const p of prereqs) {
+      const cur = status[p]
+      if (cur === 'unknown' || cur === 'conditional') {
+        status[p] = 'known'
+        log.push({ skillId: p, verdict: 'pass', at, source: 'escalation-propagated-up' })
+      }
+    }
+  } else if (verdict === 'fail') {
+    const post = engine.postreqClosure[skillId] ?? new Set()
+    for (const q of post) {
+      const cur = status[q]
+      if (cur === 'unknown' || cur === 'conditional') {
+        status[q] = 'not-known'
+        log.push({ skillId: q, verdict: 'fail', at, source: 'escalation-propagated-down' })
+      }
+    }
+  }
+
+  return { log, status, escalations }
 }
 
 export const DAY_MS = 24 * 60 * 60 * 1000

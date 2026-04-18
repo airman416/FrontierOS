@@ -15,9 +15,8 @@ import {
 import { TODAY_TASKS, type TodayTask } from '../data/student'
 import type { GeneratedGraph, GraphDelta, SportPlan } from '../lib/graphSchema'
 import { resolveAthleteGraph } from '../lib/graphDelta'
-import type { DiagnosticEntry } from '../lib/diagnostic'
+import type { DiagnosticEntry, EscalationEntry } from '../lib/diagnostic'
 import {
-  BASE_INTERVAL_MS,
   buildPostreqClosure,
   buildPrereqClosure,
   completeTask as fireCompleteTask,
@@ -26,6 +25,7 @@ import {
   dueSkills,
   failTask as fireFailTask,
   isFrontier,
+  seedMissingReviewState,
   type CandidateContext,
   type ConditionalState,
   type ReviewSkillState,
@@ -54,6 +54,11 @@ export interface SportData {
 export interface DiagnosticRecord {
   completedAt: number
   log: DiagnosticEntry[]
+  /**
+   * AI-generated harder probes graded during the escalation phase. Empty
+   * for athletes onboarded before escalation existed.
+   */
+  escalations?: EscalationEntry[]
 }
 
 export interface DashboardState {
@@ -66,6 +71,19 @@ export interface ReonboardStatus {
   at: number
   rationale: string
   confirmed?: boolean
+}
+
+/**
+ * Snapshot of training state captured immediately *before* a task completion is
+ * applied. Used by `uncompleteTask` to restore the prior state when an athlete
+ * unchecks a task. Persisted to the backend (`athlete_training_state.task_snapshots`)
+ * so undo survives page reloads.
+ */
+export interface TaskCompletionSnapshot {
+  mastered: string[]
+  skillProgress: Record<string, number>
+  conditional: Record<string, ConditionalState>
+  reviewState: Record<string, ReviewSkillState>
 }
 
 const DEFAULT_SKILL_SHORT: Record<string, string> = {
@@ -240,6 +258,12 @@ interface FrontierState {
 
   athleteSkillProgress: Record<string, Record<string, number>>
   athleteCompletedTasks: Record<string, Set<string>>
+  /**
+   * Maps athleteId → taskId → snapshot taken just before the task was
+   * completed. Powers `uncompleteTask`. Persisted to the backend so undo
+   * still works after a reload; cleared per task by `clearCompletedTasks`.
+   */
+  athleteTaskSnapshots: Record<string, Record<string, TaskCompletionSnapshot>>
   athleteConditional: Record<string, Record<string, ConditionalState>>
   athleteReviewState: Record<string, Record<string, ReviewSkillState>>
   athleteDiagnostic: Record<string, DiagnosticRecord>
@@ -295,6 +319,7 @@ interface FrontierState {
     athleteId: string,
     entries: DiagnosticEntry[],
     derivedStatus: Record<string, 'known' | 'not-known' | 'conditional' | 'unknown'>,
+    escalations?: EscalationEntry[],
   ) => void
   clearDiagnostic: (athleteId: string) => void
   seedReonboardedAthlete: (payload: {
@@ -305,6 +330,8 @@ interface FrontierState {
   }) => void
   confirmReonboard: (athleteId: string) => void
   completeTask: (athleteId: string, taskId: string) => void
+  uncompleteTask: (athleteId: string, taskId: string) => void
+  clearCompletedTasks: (athleteId: string) => void
   failTask: (athleteId: string, taskId: string) => void
   getDashboardTasks: (athleteId: string) => TodayTask[]
   getAthleteSkillProgress: (athleteId: string) => Record<string, number>
@@ -402,6 +429,7 @@ function trainingStateToSlices(rows: ApiTrainingState[]) {
   const athleteReadiness: Record<string, number> = {}
   const athleteSkillProgress: Record<string, Record<string, number>> = {}
   const athleteCompletedTasks: Record<string, Set<string>> = {}
+  const athleteTaskSnapshots: Record<string, Record<string, TaskCompletionSnapshot>> = {}
   const athleteConditional: Record<string, Record<string, ConditionalState>> = {}
   const athleteReviewState: Record<string, Record<string, ReviewSkillState>> = {}
   const athleteDiagnostic: Record<string, DiagnosticRecord> = {}
@@ -413,6 +441,7 @@ function trainingStateToSlices(rows: ApiTrainingState[]) {
     athleteReadiness[row.athleteId] = row.readiness
     athleteSkillProgress[row.athleteId] = row.skillProgress ?? {}
     athleteCompletedTasks[row.athleteId] = new Set(row.completedTasks ?? [])
+    athleteTaskSnapshots[row.athleteId] = row.taskSnapshots ?? {}
     athleteConditional[row.athleteId] = row.conditional ?? {}
     athleteReviewState[row.athleteId] = row.reviewState ?? {}
     if (row.diagnostic) athleteDiagnostic[row.athleteId] = row.diagnostic
@@ -425,6 +454,7 @@ function trainingStateToSlices(rows: ApiTrainingState[]) {
     athleteReadiness,
     athleteSkillProgress,
     athleteCompletedTasks,
+    athleteTaskSnapshots,
     athleteConditional,
     athleteReviewState,
     athleteDiagnostic,
@@ -445,6 +475,7 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
 
   athleteSkillProgress: {},
   athleteCompletedTasks: {},
+  athleteTaskSnapshots: {},
   athleteConditional: {},
   athleteReviewState: {},
   athleteDiagnostic: {},
@@ -511,6 +542,7 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
           completedTasks: [],
           conditional: {},
           reviewState: {},
+          taskSnapshots: {},
           diagnostic: null,
           dashboard: null,
           reonboardStatus: null,
@@ -520,6 +552,22 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     }
 
     const slices = trainingStateToSlices(hydrated)
+
+    // Backfill missing reviewState entries for any mastered skill so the
+    // dashboard surfaces "due" review tasks for legacy/seed-data athletes.
+    // Persist anything we changed back to the server so it sticks.
+    const now = Date.now()
+    for (const athleteId of Object.keys(slices.athleteMastery)) {
+      const mastered = slices.athleteMastery[athleteId] ?? new Set<string>()
+      const existing = slices.athleteReviewState[athleteId] ?? {}
+      const seeded = seedMissingReviewState(mastered, existing, now)
+      if (!seeded.changed) continue
+      slices.athleteReviewState[athleteId] = seeded.reviewState
+      fireAndForget(
+        api.patchAthleteState(athleteId, { reviewState: seeded.reviewState }),
+        'hydrate.backfillReviewState',
+      )
+    }
 
     const selected = get().selectedAthleteId
     set({
@@ -581,6 +629,7 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       readinessScore: freshReadiness[selectedAthleteId],
       athleteSkillProgress: {},
       athleteCompletedTasks: {},
+      athleteTaskSnapshots: {},
       athleteConditional: {},
       athleteReviewState: {},
       athleteDiagnostic: {},
@@ -864,7 +913,7 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
 
   /* ─── Adaptive diagnostic ─── */
 
-  runDiagnostic: (athleteId, entries, derivedStatus) => {
+  runDiagnostic: (athleteId, entries, derivedStatus, escalations = []) => {
     const now = Date.now()
     const state = get()
 
@@ -875,21 +924,24 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     for (const [skillId, status] of Object.entries(derivedStatus)) {
       if (status === 'known') {
         nextMastered.add(skillId)
-        nextReviewState[skillId] = {
-          stability: 1.0,
-          lastReviewedAt: now,
-          dueAt: now + 1.0 * BASE_INTERVAL_MS,
-        }
       } else if (status === 'conditional') {
         nextMastered.add(skillId)
         nextConditional[skillId] = { confidence: 0.5, successes: 0 }
+        // Surface conditional skills as due-now reviews so a freshly
+        // onboarded athlete always sees something on day one.
         nextReviewState[skillId] = {
           stability: 0.5,
           lastReviewedAt: now,
-          dueAt: now + 0.5 * BASE_INTERVAL_MS,
+          dueAt: now,
         }
       }
     }
+
+    // Stagger reviewState for "known" skills so the dashboard surfaces a
+    // steady drip of review tasks (some due now, some in 1-2 days) instead
+    // of nothing on day one.
+    const seededKnown = seedMissingReviewState(nextMastered, nextReviewState, now)
+    Object.assign(nextReviewState, seededKnown.reviewState)
 
     const nextAthleteMastery = { ...state.athleteMastery, [athleteId]: nextMastered }
     const nextAthleteConditional = {
@@ -902,12 +954,16 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     }
     const nextAthleteDiagnostic = {
       ...state.athleteDiagnostic,
-      [athleteId]: { completedAt: now, log: entries },
+      [athleteId]: { completedAt: now, log: entries, escalations },
     }
     const nextSkillProgress = { ...state.athleteSkillProgress, [athleteId]: {} }
     const nextCompletedTasks = {
       ...state.athleteCompletedTasks,
       [athleteId]: new Set<string>(),
+    }
+    const nextTaskSnapshots = {
+      ...state.athleteTaskSnapshots,
+      [athleteId]: {},
     }
     const nextReonboardStatus = { ...state.athleteReonboardStatus }
     delete nextReonboardStatus[athleteId]
@@ -920,6 +976,7 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       athleteDiagnostic: nextAthleteDiagnostic,
       athleteSkillProgress: nextSkillProgress,
       athleteCompletedTasks: nextCompletedTasks,
+      athleteTaskSnapshots: nextTaskSnapshots,
       athleteReonboardStatus: nextReonboardStatus,
     }
     const ctx = buildCandidateContext(stagedState, athleteId, now)
@@ -938,6 +995,7 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       athleteDiagnostic: nextAthleteDiagnostic,
       athleteSkillProgress: nextSkillProgress,
       athleteCompletedTasks: nextCompletedTasks,
+      athleteTaskSnapshots: nextTaskSnapshots,
       athleteDashboard: nextDashboard,
       athleteReonboardStatus: nextReonboardStatus,
       ...(isSelected ? { mastered: nextMastered } : {}),
@@ -947,9 +1005,10 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       mastery: [...nextMastered],
       conditional: nextConditional,
       reviewState: nextReviewState,
-      diagnostic: { completedAt: now, log: entries },
+      diagnostic: { completedAt: now, log: entries, escalations },
       skillProgress: {},
       completedTasks: [],
+      taskSnapshots: {},
       dashboard: { taskIds: nextIds, updatedAt: now },
       reonboardStatus: null,
     }
@@ -973,21 +1032,20 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     const nextConditional: Record<string, ConditionalState> = {}
     const nextReviewState: Record<string, ReviewSkillState> = {}
 
-    for (const id of mastered) {
-      nextReviewState[id] = {
-        stability: 1.0,
-        lastReviewedAt: now,
-        dueAt: now + 1.0 * BASE_INTERVAL_MS,
-      }
-    }
     for (const [id, v] of Object.entries(conditional)) {
       nextConditional[id] = { confidence: v.confidence, successes: 0 }
+      // Match runDiagnostic: conditional skills are due immediately so the
+      // dashboard never starts empty after a re-onboard.
       nextReviewState[id] = {
         stability: 0.5,
         lastReviewedAt: now,
-        dueAt: now + 0.5 * BASE_INTERVAL_MS,
+        dueAt: now,
       }
     }
+    // Stagger known-skill reviews so a portion are immediately due and the
+    // rest roll in over the next two days.
+    const seededKnown = seedMissingReviewState(nextMastered, nextReviewState, now)
+    Object.assign(nextReviewState, seededKnown.reviewState)
 
     const nextAthleteMastery = { ...state.athleteMastery, [athleteId]: nextMastered }
     const nextAthleteConditional = {
@@ -1002,6 +1060,10 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
     const nextCompletedTasks = {
       ...state.athleteCompletedTasks,
       [athleteId]: new Set<string>(),
+    }
+    const nextTaskSnapshots = {
+      ...state.athleteTaskSnapshots,
+      [athleteId]: {},
     }
     const reonboardStatus: ReonboardStatus = {
       aiReonboarded: true,
@@ -1021,6 +1083,7 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       athleteReviewState: nextAthleteReviewState,
       athleteSkillProgress: nextSkillProgress,
       athleteCompletedTasks: nextCompletedTasks,
+      athleteTaskSnapshots: nextTaskSnapshots,
       athleteReonboardStatus: nextReonboardStatus,
     }
     const ctx = buildCandidateContext(stagedState, athleteId, now)
@@ -1037,6 +1100,7 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       athleteReviewState: nextAthleteReviewState,
       athleteSkillProgress: nextSkillProgress,
       athleteCompletedTasks: nextCompletedTasks,
+      athleteTaskSnapshots: nextTaskSnapshots,
       athleteReonboardStatus: nextReonboardStatus,
       athleteDashboard: nextDashboard,
       ...(isSelected ? { mastered: nextMastered } : {}),
@@ -1049,6 +1113,7 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
         reviewState: nextReviewState,
         skillProgress: {},
         completedTasks: [],
+        taskSnapshots: {},
         reonboardStatus,
         dashboard: { taskIds: nextIds, updatedAt: now },
       }),
@@ -1079,13 +1144,25 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
 
     if ((state.athleteCompletedTasks[athleteId] ?? new Set()).has(taskId)) return
 
+    // Snapshot the prior training state so `uncompleteTask` can restore it.
+    const priorMastery = state.athleteMastery[athleteId] ?? new Set<string>()
+    const priorSkillProgress = state.athleteSkillProgress[athleteId] ?? {}
+    const priorConditional = state.athleteConditional[athleteId] ?? {}
+    const priorReviewState = state.athleteReviewState[athleteId] ?? {}
+    const snapshot: TaskCompletionSnapshot = {
+      mastered: [...priorMastery],
+      skillProgress: { ...priorSkillProgress },
+      conditional: { ...priorConditional },
+      reviewState: { ...priorReviewState },
+    }
+
     const result = fireCompleteTask({
       task,
       skillById: ctx.skillById,
       prereqClosure: ctx.prereqClosure,
       mastered: ctx.mastered,
       skillProgress: ctx.skillProgress,
-      conditional: state.athleteConditional[athleteId] ?? {},
+      conditional: priorConditional,
       reviewState: ctx.reviewState,
       now,
     })
@@ -1110,6 +1187,13 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       ...state.athleteCompletedTasks,
       [athleteId]: completedSet,
     }
+    const nextAthleteTaskSnapshots = {
+      ...state.athleteTaskSnapshots,
+      [athleteId]: {
+        ...(state.athleteTaskSnapshots[athleteId] ?? {}),
+        [taskId]: snapshot,
+      },
+    }
 
     const stagedState: FrontierState = {
       ...state,
@@ -1120,11 +1204,13 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       athleteCompletedTasks: nextAthleteCompletedTasks,
     }
     const refilledCtx = buildCandidateContext(stagedState, athleteId, now)
+    // Keep the completed taskId in the dashboard so it stays visible (rendered
+    // as "done"). The cap counts only non-completed tasks, so a fresh task
+    // will still drop in alongside it.
     const currentIds = state.athleteDashboard[athleteId]?.taskIds ?? []
-    const keptIds = currentIds.filter((id) => id !== taskId)
     const nextIds = refilledCtx
-      ? computeDashboardFill(refilledCtx, keptIds, DEFAULT_DASHBOARD_CAP)
-      : keptIds
+      ? computeDashboardFill(refilledCtx, currentIds, DEFAULT_DASHBOARD_CAP)
+      : currentIds
     const nextDashboard = {
       ...state.athleteDashboard,
       [athleteId]: { taskIds: nextIds, updatedAt: now },
@@ -1137,6 +1223,7 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
       athleteConditional: nextAthleteConditional,
       athleteReviewState: nextAthleteReviewState,
       athleteCompletedTasks: nextAthleteCompletedTasks,
+      athleteTaskSnapshots: nextAthleteTaskSnapshots,
       athleteDashboard: nextDashboard,
       ...(isSelected ? { mastered: result.mastered } : {}),
     })
@@ -1148,9 +1235,139 @@ export const useFrontierStore = create<FrontierState>((set, get) => ({
         conditional: result.conditional,
         reviewState: result.reviewState,
         completedTasks: [...completedSet],
+        taskSnapshots: nextAthleteTaskSnapshots[athleteId],
         dashboard: { taskIds: nextIds, updatedAt: now },
       }),
       'completeTask',
+    )
+  },
+
+  uncompleteTask: (athleteId, taskId) => {
+    const now = Date.now()
+    const state = get()
+    const completedSet = new Set(state.athleteCompletedTasks[athleteId] ?? new Set<string>())
+    if (!completedSet.has(taskId)) return
+    completedSet.delete(taskId)
+
+    const snapshot = state.athleteTaskSnapshots[athleteId]?.[taskId] ?? null
+
+    // Restore prior training state from the snapshot (persisted in
+    // `athlete_training_state.task_snapshots`). The fallback only kicks in
+    // for legacy completions recorded before snapshots were captured - in
+    // that case derived state (XP/mastery/reviews) stays as-is and we just
+    // flip the completed flag so the row turns back on.
+    const restoredMastery = snapshot
+      ? new Set(snapshot.mastered)
+      : (state.athleteMastery[athleteId] ?? new Set<string>())
+    const restoredSkillProgress = snapshot
+      ? snapshot.skillProgress
+      : (state.athleteSkillProgress[athleteId] ?? {})
+    const restoredConditional = snapshot
+      ? snapshot.conditional
+      : (state.athleteConditional[athleteId] ?? {})
+    const restoredReviewState = snapshot
+      ? snapshot.reviewState
+      : (state.athleteReviewState[athleteId] ?? {})
+
+    const nextAthleteMastery = { ...state.athleteMastery, [athleteId]: restoredMastery }
+    const nextAthleteSkillProgress = {
+      ...state.athleteSkillProgress,
+      [athleteId]: restoredSkillProgress,
+    }
+    const nextAthleteConditional = {
+      ...state.athleteConditional,
+      [athleteId]: restoredConditional,
+    }
+    const nextAthleteReviewState = {
+      ...state.athleteReviewState,
+      [athleteId]: restoredReviewState,
+    }
+    const nextAthleteCompletedTasks = {
+      ...state.athleteCompletedTasks,
+      [athleteId]: completedSet,
+    }
+    const nextSnapshotsForAthlete = { ...(state.athleteTaskSnapshots[athleteId] ?? {}) }
+    delete nextSnapshotsForAthlete[taskId]
+    const nextAthleteTaskSnapshots = {
+      ...state.athleteTaskSnapshots,
+      [athleteId]: nextSnapshotsForAthlete,
+    }
+
+    const isSelected = state.selectedAthleteId === athleteId
+    const currentIds = state.athleteDashboard[athleteId]?.taskIds ?? []
+    const nextDashboard = {
+      ...state.athleteDashboard,
+      [athleteId]: { taskIds: currentIds, updatedAt: now },
+    }
+
+    set({
+      athleteMastery: nextAthleteMastery,
+      athleteSkillProgress: nextAthleteSkillProgress,
+      athleteConditional: nextAthleteConditional,
+      athleteReviewState: nextAthleteReviewState,
+      athleteCompletedTasks: nextAthleteCompletedTasks,
+      athleteTaskSnapshots: nextAthleteTaskSnapshots,
+      athleteDashboard: nextDashboard,
+      ...(isSelected ? { mastered: restoredMastery } : {}),
+    })
+
+    fireAndForget(
+      api.patchAthleteState(athleteId, {
+        mastery: [...restoredMastery],
+        skillProgress: restoredSkillProgress,
+        conditional: restoredConditional,
+        reviewState: restoredReviewState,
+        completedTasks: [...completedSet],
+        taskSnapshots: nextSnapshotsForAthlete,
+        dashboard: { taskIds: currentIds, updatedAt: now },
+      }),
+      'uncompleteTask',
+    )
+  },
+
+  clearCompletedTasks: (athleteId) => {
+    const now = Date.now()
+    const state = get()
+    const completedSet = state.athleteCompletedTasks[athleteId] ?? new Set<string>()
+    if (completedSet.size === 0) return
+    const currentIds = state.athleteDashboard[athleteId]?.taskIds ?? []
+    const remainingIds = currentIds.filter((id) => !completedSet.has(id))
+    if (remainingIds.length === currentIds.length) return
+
+    // Refill from the candidate pool now that the cleared rows freed slots.
+    const ctx = buildCandidateContext(state, athleteId, now)
+    const nextIds = ctx
+      ? computeDashboardFill(ctx, remainingIds, DEFAULT_DASHBOARD_CAP)
+      : remainingIds
+    const nextDashboard = {
+      ...state.athleteDashboard,
+      [athleteId]: { taskIds: nextIds, updatedAt: now },
+    }
+
+    // Drop snapshots for any tasks we just removed from the dashboard so the
+    // backend payload doesn't grow unbounded.
+    const removedIds = new Set(currentIds.filter((id) => !nextIds.includes(id)))
+    const priorSnapshots = state.athleteTaskSnapshots[athleteId] ?? {}
+    const nextSnapshotsForAthlete: Record<string, TaskCompletionSnapshot> = {}
+    for (const [tid, snap] of Object.entries(priorSnapshots)) {
+      if (!removedIds.has(tid)) nextSnapshotsForAthlete[tid] = snap
+    }
+    const nextAthleteTaskSnapshots = {
+      ...state.athleteTaskSnapshots,
+      [athleteId]: nextSnapshotsForAthlete,
+    }
+
+    set({
+      athleteDashboard: nextDashboard,
+      athleteTaskSnapshots: nextAthleteTaskSnapshots,
+    })
+
+    fireAndForget(
+      api.patchAthleteState(athleteId, {
+        dashboard: { taskIds: nextIds, updatedAt: now },
+        taskSnapshots: nextSnapshotsForAthlete,
+      }),
+      'clearCompletedTasks',
     )
   },
 

@@ -40,6 +40,13 @@ export interface ApiAthleteLegacyGraph {
   updatedAt: number
 }
 
+export interface ApiTaskCompletionSnapshot {
+  mastered: string[]
+  skillProgress: Record<string, number>
+  conditional: Record<string, { confidence: number; successes: number }>
+  reviewState: Record<string, { stability: number; lastReviewedAt: number; dueAt: number }>
+}
+
 export interface ApiAthleteTrainingState {
   athleteId: string
   mastery: string[]
@@ -48,7 +55,25 @@ export interface ApiAthleteTrainingState {
   completedTasks: string[]
   conditional: Record<string, { confidence: number; successes: number }>
   reviewState: Record<string, { stability: number; lastReviewedAt: number; dueAt: number }>
-  diagnostic: { completedAt: number; log: Array<{ skillId: string; verdict: string }> } | null
+  /**
+   * Per-task snapshot of training state captured immediately *before* the
+   * task was completed. Keyed by task id. Powers the "uncheck" affordance on
+   * the athlete dashboard.
+   */
+  taskSnapshots: Record<string, ApiTaskCompletionSnapshot>
+  diagnostic: {
+    completedAt: number
+    log: Array<{ skillId: string; verdict: string }>
+    /** AI-generated harder probes graded during the escalation phase. */
+    escalations?: Array<{
+      skillId: string
+      prompt: string
+      rationale?: string
+      verdict: string
+      note?: string
+      at: number
+    }>
+  } | null
   dashboard: { taskIds: string[]; updatedAt: number } | null
   reonboardStatus: {
     aiReonboarded: boolean

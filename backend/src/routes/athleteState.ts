@@ -26,6 +26,20 @@ const conditionalStateSchema = z.object({
 const diagnosticSchema = z.object({
   completedAt: z.number(),
   log: z.array(z.object({ skillId: z.string(), verdict: z.string() }).passthrough()),
+  escalations: z
+    .array(
+      z
+        .object({
+          skillId: z.string(),
+          prompt: z.string(),
+          rationale: z.string().optional(),
+          verdict: z.string(),
+          note: z.string().optional(),
+          at: z.number(),
+        })
+        .passthrough(),
+    )
+    .optional(),
 })
 
 const dashboardSchema = z.object({
@@ -40,6 +54,13 @@ const reonboardStatusSchema = z.object({
   confirmed: z.boolean().optional(),
 })
 
+const taskSnapshotSchema = z.object({
+  mastered: z.array(z.string()),
+  skillProgress: z.record(z.string(), z.number()),
+  conditional: z.record(z.string(), conditionalStateSchema),
+  reviewState: z.record(z.string(), reviewSkillStateSchema),
+})
+
 /**
  * Partial patch schema. Every field is optional; only the fields present in
  * the request body are updated. `null` for the nullable fields explicitly
@@ -52,6 +73,7 @@ const patchSchema = z.object({
   completedTasks: z.array(z.string()).optional(),
   conditional: z.record(z.string(), conditionalStateSchema).optional(),
   reviewState: z.record(z.string(), reviewSkillStateSchema).optional(),
+  taskSnapshots: z.record(z.string(), taskSnapshotSchema).optional(),
   diagnostic: diagnosticSchema.nullable().optional(),
   dashboard: dashboardSchema.nullable().optional(),
   reonboardStatus: reonboardStatusSchema.nullable().optional(),
@@ -66,6 +88,7 @@ function rowToApi(row: typeof athleteTrainingState.$inferSelect): ApiAthleteTrai
     completedTasks: row.completedTasks ?? [],
     conditional: row.conditional ?? {},
     reviewState: row.reviewState ?? {},
+    taskSnapshots: row.taskSnapshots ?? {},
     diagnostic: row.diagnostic ?? null,
     dashboard: row.dashboard ?? null,
     reonboardStatus: row.reonboardStatus ?? null,
@@ -97,6 +120,7 @@ async function loadOrInitState(athleteId: string) {
       completedTasks: [],
       conditional: {},
       reviewState: {},
+      taskSnapshots: {},
       diagnostic: null,
       dashboard: null,
       reonboardStatus: null,
@@ -144,6 +168,7 @@ export async function registerAthleteStateRoutes(app: FastifyInstance): Promise<
     if (p.completedTasks !== undefined) updates.completedTasks = p.completedTasks
     if (p.conditional !== undefined) updates.conditional = p.conditional
     if (p.reviewState !== undefined) updates.reviewState = p.reviewState
+    if (p.taskSnapshots !== undefined) updates.taskSnapshots = p.taskSnapshots
     if (p.diagnostic !== undefined) updates.diagnostic = p.diagnostic
     if (p.dashboard !== undefined) updates.dashboard = p.dashboard
     if (p.reonboardStatus !== undefined) updates.reonboardStatus = p.reonboardStatus
@@ -188,6 +213,7 @@ export async function registerAthleteStateRoutes(app: FastifyInstance): Promise<
         completedTasks: [],
         conditional: {},
         reviewState: {},
+        taskSnapshots: {},
         diagnostic: null,
         dashboard: null,
         reonboardStatus: null,
@@ -202,6 +228,7 @@ export async function registerAthleteStateRoutes(app: FastifyInstance): Promise<
           completedTasks: [],
           conditional: {},
           reviewState: {},
+          taskSnapshots: {},
           diagnostic: null,
           dashboard: null,
           reonboardStatus: null,
@@ -246,6 +273,7 @@ export async function registerAthleteStateRoutes(app: FastifyInstance): Promise<
           completedTasks: [],
           conditional: {},
           reviewState: {},
+          taskSnapshots: {},
           diagnostic: null,
           dashboard: null,
           reonboardStatus: null,
@@ -260,6 +288,7 @@ export async function registerAthleteStateRoutes(app: FastifyInstance): Promise<
             completedTasks: [],
             conditional: {},
             reviewState: {},
+            taskSnapshots: {},
             diagnostic: null,
             dashboard: null,
             reonboardStatus: null,

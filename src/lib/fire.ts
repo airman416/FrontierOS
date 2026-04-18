@@ -124,6 +124,38 @@ function stringHash(str: string): number {
   return h
 }
 
+/**
+ * Backfill review-state entries for every mastered skill that lacks one. Without
+ * this, legacy / seed-data athletes have `mastered = {a, b, c}` but
+ * `reviewState = {}`, so `dueSkills` returns nothing and the dashboard never
+ * surfaces a review task. We stagger `dueAt` deterministically across mastered
+ * skills - roughly a third are due now, a third in one day, a third in two
+ * days - so the athlete sees a steady drip of due reviews instead of a flood.
+ *
+ * Returns the merged review-state map and a flag indicating whether any new
+ * entries were inserted (so callers can decide whether to persist).
+ */
+export function seedMissingReviewState(
+  mastered: Iterable<string>,
+  reviewState: Record<string, ReviewSkillState>,
+  now: number,
+): { reviewState: Record<string, ReviewSkillState>; changed: boolean } {
+  const next: Record<string, ReviewSkillState> = { ...reviewState }
+  let changed = false
+  for (const id of mastered) {
+    if (next[id]) continue
+    const bucket = ((stringHash(id) % 3) + 3) % 3
+    const offsetDays = bucket // 0, 1, or 2 days from now
+    next[id] = {
+      stability: 1.0,
+      lastReviewedAt: now,
+      dueAt: now + offsetDays * BASE_INTERVAL_MS,
+    }
+    changed = true
+  }
+  return { reviewState: next, changed }
+}
+
 export interface CandidateContext {
   athleteId: string
   skills: SkillDef[]
@@ -227,27 +259,36 @@ export function computeDashboardFill(
   const tasksById = new Map(ctx.tasks.map((t) => [t.id, t]))
   const current: string[] = []
   const seen = new Set<string>()
+  // Keep completed task IDs in the dashboard so they remain visible to the
+  // athlete (rendered as "done"). They no longer count toward the cap, so
+  // the next-best candidate can still drop in beside them.
   for (const id of existingTaskIds) {
     if (seen.has(id)) continue
-    if (ctx.completedTaskIds.has(id)) continue
     if (!tasksById.has(id)) continue
     current.push(id)
     seen.add(id)
   }
 
-  if (current.length >= boundedCap) return current.slice(0, boundedCap)
+  const isCompleted = (id: string) => ctx.completedTaskIds.has(id)
+  const activeCount = (ids: string[]) => {
+    let n = 0
+    for (const id of ids) if (!isCompleted(id)) n++
+    return n
+  }
+
+  if (activeCount(current) >= boundedCap) return current
 
   const ranked = rankCandidateTasks(ctx).filter((r) => !seen.has(r.task.id))
   const hasFrontierAvailable = ranked.some((r) => r.kind === 'frontier')
   const hasFrontierOnDashboard = current.some((id) => {
+    if (isCompleted(id)) return false
     const t = tasksById.get(id)
     if (!t?.skillId) return false
     return isFrontier(t.skillId, ctx.skillById, ctx.mastered)
   })
 
   const picks = [...current]
-  // Ensure ≥1 frontier is present (from candidate pool) if one is available.
-  if (!hasFrontierOnDashboard && hasFrontierAvailable && picks.length < boundedCap) {
+  if (!hasFrontierOnDashboard && hasFrontierAvailable && activeCount(picks) < boundedCap) {
     const nextFrontier = ranked.find((r) => r.kind === 'frontier')
     if (nextFrontier) {
       picks.push(nextFrontier.task.id)
@@ -256,7 +297,7 @@ export function computeDashboardFill(
   }
 
   for (const r of ranked) {
-    if (picks.length >= boundedCap) break
+    if (activeCount(picks) >= boundedCap) break
     if (seen.has(r.task.id)) continue
     picks.push(r.task.id)
     seen.add(r.task.id)
