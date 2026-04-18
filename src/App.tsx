@@ -597,7 +597,7 @@ function WelcomeModal({
             </h2>
             <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-snug text-slate-400">
               <li>Pick your sport.</li>
-              <li>Tap Generate Team Plan. Talk with the AI until the map fits how you coach.</li>
+              <li>Tap Generate Team Plan. This creates a baseline blueprint: every player gets their own copy to start. Talk with the AI until the map fits how you coach.</li>
               <li>Run the short check-in quiz for each athlete.</li>
               <li>Optional: open one athlete and change only their map.</li>
               <li>Use the color team screen day to day. Open a player when you want drills or their map.</li>

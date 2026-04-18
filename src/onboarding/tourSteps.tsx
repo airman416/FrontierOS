@@ -70,7 +70,7 @@ export const builderFormTourSteps: StepType[] = [
   {
     selector: '[data-tour="builder-form-card"]',
     content:
-      'Say how you coach your team. You can write a little or a lot. You can fix details later. When you are ready, tap Generate Team Plan and wait until the picture of skills appears.',
+      'Say how you coach your team. This creates a baseline blueprint: every athlete will get their own copy of this exact plan to start. You can write a little or a lot. When you are ready, tap Generate Team Plan and wait.',
     position: 'right',
     disableActions: true,
     stepInteraction: true,
@@ -81,7 +81,7 @@ export const builderFormTourSteps: StepType[] = [
 const graphPreviewStep: StepType = {
   selector: '[data-tour="builder-graph-preview"]',
   content:
-    "This map shows all your team's skills in one picture.\n\nEach box is a skill. Lines show how easier skills connect to harder ones.\n\nTap a box to read about it. Drag to move the map.\n\nWant the next tip? Tap the forward arrow below. You do not have to change anything yet.",
+    "This map is your team's baseline blueprint. Every athlete gets this exact skill tree as their starting point.\n\nEach box is a skill. Lines show how easier skills connect to harder ones.\n\nTap a box to read about it. Drag to move the map.\n\nWant the next tip? Tap the forward arrow below.",
   position: skillMapTourPosition,
   /** Reset Reactour’s global `disabledActions` after a step that used `disableActions: true`. */
   disableActions: false,
@@ -147,14 +147,14 @@ export const studentDetailTourSteps: StepType[] = [
   {
     selector: '[data-tour="student-skill-graph"]',
     content:
-      'This map mirrors your team plan: easier skills settle under tougher ones like rungs on a ladder. Tap any skill to inspect it.',
+      'This map starts as an exact copy of your team plan: easier skills settle under tougher ones like rungs on a ladder. Tap any skill to inspect it.',
     position: 'right',
     disableActions: false,
   },
   {
     selector: '[data-tour="student-finetune-hint"]',
     content:
-      'Later you can fine-tune only this athlete’s map without redoing the whole team. It stays here whenever you come back.',
+      'Later you can fine-tune only this athlete’s map without affecting anyone else. It stays here whenever you come back.',
     position: 'left',
     disableActions: false,
   },
