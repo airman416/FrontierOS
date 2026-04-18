@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { SkillDef, Sport } from '../../data/graph'
 import { ATHLETE_BY_ID } from '../../data/athletes'
 import { generateGraph } from '../../lib/generateApi'
@@ -114,6 +122,8 @@ export function BuilderView({
   const [streamingReply, setStreamingReply] = useState('')
   const [streamingStatus, setStreamingStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const previewRafRef = useRef<number | null>(null)
+  const latestPreviewRef = useRef<GeneratedGraph | null>(null)
   const [currentGraph, setCurrentGraph] = useState<GeneratedGraph | null>(initialGraph)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
 
@@ -214,6 +224,8 @@ export function BuilderView({
       setStreamingStatus(null)
       setError(null)
 
+      const graphBeforeRequest = currentGraph
+
       try {
         const mode: GenerateMode = isSportMode ? 'sport' : 'athlete'
         const response = await generateGraph(
@@ -227,12 +239,37 @@ export function BuilderView({
             athleteContext: athleteContextForApi,
           },
           {
-            onPartial: ({ chatReply, graphBuilding }) => {
+            onPartial: ({ chatReply, graphBuilding, previewGraph }) => {
               setStreamingReply(chatReply)
-              setStreamingStatus(graphBuilding ? 'Building graph preview…' : null)
+              if (graphBuilding) {
+                const n = previewGraph?.skills.length ?? 0
+                setStreamingStatus(
+                  n > 0
+                    ? `Streaming graph… ${n} skill${n === 1 ? '' : 's'} in preview`
+                    : 'Streaming graph…',
+                )
+              } else {
+                setStreamingStatus(null)
+              }
+              if (previewGraph && previewGraph.skills.length > 0) {
+                latestPreviewRef.current = previewGraph
+                if (previewRafRef.current == null) {
+                  previewRafRef.current = requestAnimationFrame(() => {
+                    previewRafRef.current = null
+                    const g = latestPreviewRef.current
+                    if (g) setCurrentGraph(g)
+                  })
+                }
+              }
             },
           },
         )
+
+        if (previewRafRef.current != null) {
+          cancelAnimationFrame(previewRafRef.current)
+          previewRafRef.current = null
+        }
+        latestPreviewRef.current = null
 
         const nextHistory: ChatMessage[] = [
           ...newHistory,
@@ -244,11 +281,17 @@ export function BuilderView({
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Something went wrong'
         setError(msg)
+        setCurrentGraph(graphBeforeRequest)
         setMessages([
           ...newHistory,
           { role: 'assistant', content: `Error: ${msg}. Please try again.` },
         ])
       } finally {
+        if (previewRafRef.current != null) {
+          cancelAnimationFrame(previewRafRef.current)
+          previewRafRef.current = null
+        }
+        latestPreviewRef.current = null
         setIsLoading(false)
         setStreamingReply('')
         setStreamingStatus(null)
