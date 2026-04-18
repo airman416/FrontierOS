@@ -56,6 +56,8 @@ Any sport, any philosophy. A coach types what they want — *"High-school softba
 
 After the first generation, coaches can keep iterating in a chat panel next to a live graph preview. *"Add a mental game lane,"* *"merge these two nodes,"* *"simplify the strength branch"* — the graph updates in place.
 
+Each turn is **structured output**: the model returns a short coach-facing reply plus a JSON graph (skills, athletes, tasks, labels) that matches a fixed schema, so the visualizer and diagnostics plug in without fragile parsing. The system prompts spell out **how** graphs are assembled—tiered levels, universal foundations vs sport-specific nodes, valid prerequisite edges, quick onboarding diagnostics, and roster constraints—so free-form coach requirements steer *content* while *shape* stays consistent across sports.
+
 ![Builder form](images/builder-form.png)
 
 ![Builder graph](images/builder-graph.png)
@@ -111,7 +113,7 @@ The end-to-end coach flow, start to finish:
 
 ## Architecture at a glance
 
-A single-page React app backed by a Node/Fastify API that owns both AI generation and persistence.
+A single-page React app backed by a Node/Fastify API that owns both AI generation and persistence. For a directory-by-directory map of the repo (`src/`, `backend/`, etc.), see **[Repository structure](docs/repository-structure.md)**.
 
 - **Frontend** — Vite + React + TypeScript + Tailwind. All the interactive graph rendering is React Flow with a dagre layout. The root is wrapped in a `StoreHydrator` that blocks first paint until `GET /api/bootstrap` resolves.
 - **State** — one Zustand store (`useFrontierStore`) holds the team plan, each athlete's delta, diagnostic results, mastery, conditional states, review schedules, and dashboard tasks. Mutations apply optimistic updates in-memory and fire-and-forget the matching API request; persistence lives in Postgres.
